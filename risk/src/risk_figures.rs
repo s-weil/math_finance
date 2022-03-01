@@ -1,87 +1,110 @@
 use crate::error::RiskError;
+use std::ops::{Div, Sub};
 
-// trait Numeric
-// {
-//     // type N where N:std::cmp::PartialEq;
-//     type N : std::ops::Div<Output=Self::N>;
+pub trait Rational {
+    type Numeric;
 
-//     fn not_divisible(n: Self::N) -> bool;
-
-//     // #[doc(alias = "./")]
-//     fn divide(nominator: Self::N, denominator: Self::N) -> Result<Self::N, RiskError> {
-//         // TODO: check of isNan
-//         if Self::not_divisible(denominator) {
-//             Err(RiskError::ZeroDivision)
-//         } else {
-//             Ok(nominator/denominator)
-//         }
-//     }
-// }
-
-// impl Numeric for f32 {
-//     type N = f32;
-//     fn not_divisible(f: f32) -> bool {
-//         f.abs() < 0.00001
-//         // further checks
-//     }
-// }
-use std::ops::{Sub, Div};
-
-pub trait SharpeRatio {
-    type N: Sub<Output = Self::N> + Div<Output = Self::N> + Clone;
-
-    fn not_divisible(n: Self::N, threshold: Option<Self::N>) -> bool;
-
-    /// The ratio of the expected value of the excess of the asset returns and the risk-free (or benchmark) returns,
-    /// over the 'risk' (standard deviation) of the excess of asset and the risk-free (or benchmark) returns.
-    /// Use the threshold for the division by 'risk'.
-    /// See https://en.wikipedia.org/wiki/Sharpe_ratio
-    /// resp. https://en.wikipedia.org/wiki/Information_ratio
-    fn calculate(
-        asset_return: Self::N,
-        benchmark_return: Self::N,
-        asset_std: Self::N,
-        threshold: Option<Self::N>,
-    ) -> Result<Self::N, RiskError> {
-        if Self::not_divisible(asset_std.clone(), threshold) {
-            return Err(RiskError::ZeroDivision);
-        }
-        let sr = (asset_return - benchmark_return) / asset_std;
-        Ok(sr)
-    }
+    fn not_divisible(&self, threshold: Option<Self::Numeric>) -> bool;
 }
 
-
 #[macro_export]
-macro_rules! impl_risk_figure {
-    ($rf:ident<$impl_type:ty>) => {
-        impl $rf for $impl_type {
-            type N = $impl_type;
-            fn not_divisible(f: Self::N, tolerance: Option<Self::N>) -> bool {
+macro_rules! impl_numeric {
+    ($impl_type:ty) => {
+        impl Rational for $impl_type {
+            type Numeric = $impl_type;
+            fn not_divisible(&self, tolerance: Option<Self::Numeric>) -> bool {
                 match tolerance {
-                    Some(tol) => f.abs() <= tol,
-                    None => f.abs() == 0.0,
+                    Some(tol) => self.abs() < tol,
+                    None => self.abs() == 0.0,
                 }
             }
         }
     };
 }
 
-impl_risk_figure! { SharpeRatio<f32> }
-impl_risk_figure! { SharpeRatio<f64> }
+impl_numeric! { f32 }
+impl_numeric! { f64 }
+// TODO: add bigint dependency and implementation with feature flag
 
-// TODO:
-// use bigint with feature
+pub(crate) fn asset_bmk_ratio<N>(
+    asset_return: N,
+    benchmark_return: N,
+    asset_std: N,
+    threshold: Option<N>,
+) -> Result<N, RiskError>
+where
+    N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
+{
+    if asset_std.not_divisible(threshold) {
+        return Err(RiskError::ZeroDivision);
+    }
+    let ratio = (asset_return - benchmark_return) / asset_std;
+    Ok(ratio)
+}
 
+/// The ratio of the expected value of the excess of the asset returns and the risk-free rates,
+/// over the 'risk' (standard deviation) of the excess of asset and the risk-free-rate rates.
+/// Use the threshold for the division by 'risk'.
+/// See https://en.wikipedia.org/wiki/Sharpe_ratio
+pub fn sharpe_ratio<N>(
+    asset_return: N,
+    riskfree_rate: N,
+    excess_std: N,
+    threshold: Option<N>,
+) -> Result<N, RiskError>
+where
+    N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
+{
+    asset_bmk_ratio(asset_return, riskfree_rate, excess_std, threshold)
+}
+
+/// The ratio of the expected value of the excess of the asset returns and the benchmark returns,
+/// over the 'risk' (standard deviation) of the excess of asset and the benchmark returns.
+/// Use the threshold for the division by 'risk'.
+/// See https://en.wikipedia.org/wiki/Information_ratio
+pub fn information_ratio<N>(
+    asset_return: N,
+    benchmark_return: N,
+    excess_std: N,
+    threshold: Option<N>,
+) -> Result<N, RiskError>
+where
+    N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
+{
+    asset_bmk_ratio(asset_return, benchmark_return, excess_std, threshold)
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn sharpe_ratio_f32() {
-    //     let a = 0.2_f32;
-    //     let res : Result<f32, RiskError> = SharpeRatio::calculate(a, 0.1_f32, 1.0_f32, None);
-    //     assert_eq!(SharpeRatio::calculate(0.2_f32, 0.1_f32, 1.0_f32, None).unwrap(), 0.1_f32);
-    // }
+    #[test]
+    fn sharpe_ratio_f32() {
+        assert_eq!(
+            sharpe_ratio(0.2_f32, 0.1_f32, 1.0_f32, None).unwrap(),
+            0.1_f32
+        );
+        assert_eq!(
+            sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, None).unwrap(),
+            10.0_f32
+        );
+
+        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.05)).is_err());
+        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.01)).is_ok());
+    }
+
+    #[test]
+    fn sharpe_ratio_f64() {
+        assert_eq!(
+            sharpe_ratio(0.2_f32, 0.1_f32, 1.0_f32, None).unwrap(),
+            0.1_f32
+        );
+        assert_eq!(
+            sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, None).unwrap(),
+            10.0_f32
+        );
+
+        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.05)).is_err());
+        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.01)).is_ok());
+    }
 }
