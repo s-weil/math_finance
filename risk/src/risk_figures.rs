@@ -43,38 +43,31 @@ pub trait SharpeRatio {
         if Self::not_divisible(asset_std.clone(), tolerance) {
             return Err(RiskError::ZeroDivision);
         }
-        let sr: Self::N = (asset_return - benchmark_return) / asset_std;
+        let sr = (asset_return - benchmark_return) / asset_std;
         Ok(sr)
     }
 }
 
-impl SharpeRatio for f32 {
-    type N = f32;
-    fn not_divisible(f: f32, tolerance: Option<f32>) -> bool {
-        match tolerance {
-            Some(tol) => f.abs() <= tol,
-            None => f.abs() == 0.0,
+
+#[macro_export]
+macro_rules! impl_sharpe_ratio {
+    ($impl_type:ty) => {
+        impl SharpeRatio for $impl_type {
+            type N = $impl_type;
+            fn not_divisible(f: Self::N, tolerance: Option<Self::N>) -> bool {
+                match tolerance {
+                    Some(tol) => f.abs() <= tol,
+                    None => f.abs() == 0.0,
+                }
+            }
         }
-    }
+    };
 }
 
-impl SharpeRatio for f64 {
-    type N = f64;
-    fn not_divisible(f: f64, tolerance: Option<f64>) -> bool {
-        match tolerance {
-            Some(tol) => f.abs() <= tol,
-            None => f.abs() == 0.0,
-        }
-    }
-}
+impl_sharpe_ratio! { f32 }
+impl_sharpe_ratio! { f64 }
+
+// TODO:
+// use bigint with feature
 
 
-
-// pub struct RiskEngine<Numeric>
-// where Numeric : std::ops::Sub<Output = Numeric> {
-//     tolerance: Numeric
-// }
-
-// impl struct
-
-// impl RiskFigures<f32> for f32 {}
