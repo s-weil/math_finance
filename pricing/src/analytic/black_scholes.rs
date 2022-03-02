@@ -24,7 +24,6 @@ impl DerivativeParameter {
         strike: f64,
         time_to_expiration: f64,
         rfr: f64,
-        // drift: f64,
         vola: f64,
     ) -> Self {
         Self {
@@ -32,19 +31,16 @@ impl DerivativeParameter {
             strike,
             time_to_expiration,
             rfr,
-            // drift,
             vola,
         }
     }
 }
-
 
 pub trait OptionPrice {
     type Params;
     fn put(params: &Self::Params) -> f64;
     fn call(params: &Self::Params) -> f64;
 }
-
 
 /// European Put and Call option prices for stocks.
 /// https://en.wikipedia.org/wiki/Black-Scholes_model
@@ -131,7 +127,10 @@ mod tests {
     #[test]
     fn european_put_call_parity() {
         let dp = DerivativeParameter::new(300.0, 250.0, 1.0, 0.03, 0.15);
-        let put_call_parity =  BlackScholes::call(&dp) - BlackScholes::put(&dp);
-        assert_eq!(put_call_parity, dp.asset_price - dp.strike * (-dp.rfr * dp.time_to_expiration).exp());
+        let put_call_parity = BlackScholes::call(&dp) - BlackScholes::put(&dp);
+        assert_eq!(
+            put_call_parity,
+            dp.asset_price - dp.strike * (-dp.rfr * dp.time_to_expiration).exp()
+        );
     }
 }
