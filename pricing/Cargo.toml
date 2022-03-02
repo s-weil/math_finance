@@ -1,12 +1,15 @@
 [package]
-name        = "risk"
+name        = "pricing"
 version     = "0.0.0"
 edition     = "2021"
 author      = "snusnu"
 repository  = "https://github.com/snusnusnu/math_finance"
-description = "Risk figures"
+description = "Derivatives pricing"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "1.0.30"
+# rand = "0.8.5"
+# rand_distr = "0.4.3"
+probability = "0.17.0"
+assert_approx_eq = "1.1.0"
