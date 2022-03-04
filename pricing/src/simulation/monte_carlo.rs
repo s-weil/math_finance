@@ -40,7 +40,7 @@ impl MonteCarloSimulator {
         paths
     }
 
-    pub fn try_average_slice(&self, paths: &Vec<Vec<f64>>, slice_idx: usize) -> Option<f64> {
+    pub fn try_average_slice(&self, paths: &[Vec<f64>], slice_idx: usize) -> Option<f64> {
         if self.nr_steps > slice_idx {
             let slice: Vec<f64> = paths.iter().map(|path| path[slice_idx]).collect();
             let sum = slice.iter().fold(0.0, |curr_sum, s| curr_sum + s);
@@ -54,7 +54,7 @@ impl MonteCarloSimulator {
 pub fn try_average(paths: &[f64]) -> Option<f64> {
     if paths.is_empty() {
         None
-    } else {        
+    } else {
         let sum = paths.iter().fold(0.0, |curr_sum, s| curr_sum + s);
         Some(sum / (paths.len() as f64))
     }

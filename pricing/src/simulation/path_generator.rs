@@ -26,7 +26,6 @@ pub trait PathGenerator {
     ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64>;
 }
 
-
 impl PathGenerator for GeometricBrownianMotion {
     type Dist = Normal<f64>;
 
