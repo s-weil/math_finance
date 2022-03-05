@@ -26,8 +26,6 @@ impl_numeric! { f32 }
 impl_numeric! { f64 }
 // TODO: add bigint dependency and implementation with feature flag
 
-
-
 pub(crate) fn asset_bmk_ratio<Numeric>(
     asset_return: Numeric,
     benchmark_return: Numeric,

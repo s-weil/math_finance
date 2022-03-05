@@ -44,9 +44,9 @@ pub trait OptionPrice {
 
 /// European Put and Call option prices for stocks.
 /// https://en.wikipedia.org/wiki/Black-Scholes_model
-pub struct BlackScholes;
+pub struct BlackScholesMerton;
 
-impl OptionPrice for BlackScholes {
+impl OptionPrice for BlackScholesMerton {
     type Params = DerivativeParameter;
 
     fn call(dp: &DerivativeParameter) -> f64 {
@@ -109,25 +109,25 @@ mod tests {
     #[test]
     fn european_call() {
         let dp = DerivativeParameter::new(300.0, 250.0, 1.0, 0.03, 0.15);
-        assert_approx_eq!(BlackScholes::call(&dp), 58.8197, TOLERANCE);
+        assert_approx_eq!(BlackScholesMerton::call(&dp), 58.8197, TOLERANCE);
 
         let dp = DerivativeParameter::new(310.0, 250.0, 3.5, 0.05, 0.25);
-        assert_approx_eq!(BlackScholes::call(&dp), 113.4155, TOLERANCE);
+        assert_approx_eq!(BlackScholesMerton::call(&dp), 113.4155, TOLERANCE);
     }
 
     #[test]
     fn european_put() {
         let dp = DerivativeParameter::new(300.0, 250.0, 1.0, 0.03, 0.15);
-        assert_approx_eq!(BlackScholes::put(&dp), 1.4311, TOLERANCE);
+        assert_approx_eq!(BlackScholesMerton::put(&dp), 1.4311, TOLERANCE);
 
         let dp = DerivativeParameter::new(310.0, 250.0, 3.5, 0.05, 0.25);
-        assert_approx_eq!(BlackScholes::put(&dp), 13.2797, TOLERANCE);
+        assert_approx_eq!(BlackScholesMerton::put(&dp), 13.2797, TOLERANCE);
     }
 
     #[test]
     fn european_put_call_parity() {
         let dp = DerivativeParameter::new(300.0, 250.0, 1.0, 0.03, 0.15);
-        let put_call_parity = BlackScholes::call(&dp) - BlackScholes::put(&dp);
+        let put_call_parity = BlackScholesMerton::call(&dp) - BlackScholesMerton::put(&dp);
         assert_eq!(
             put_call_parity,
             dp.asset_price - dp.strike * (-dp.rfr * dp.time_to_expiration).exp()
