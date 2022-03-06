@@ -1,9 +1,10 @@
+use crate::common::models::DerivativeParameter;
+use crate::simulation::gbm::GeometricBrownianMotion;
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution};
-use crate::simulation::gbm::GeometricBrownianMotion;
 
 pub trait PathGenerator {
-    type Dist;
+    type Dist: Distribution<f64>;
 
     fn sample_path(
         &self,
@@ -52,8 +53,8 @@ pub trait SampleGenerator {
 // }
 
 pub struct MonteCarloPathSimulator {
-    nr_paths: usize,
-    nr_steps: usize,
+    pub nr_paths: usize,
+    pub nr_steps: usize,
 }
 
 impl MonteCarloPathSimulator {
@@ -78,6 +79,26 @@ impl MonteCarloPathSimulator {
         }
         paths
     }
+
+    // pub fn simulate_paths2(
+    //     &self,
+    //     generator: impl PathGenerator,
+    //     initial_value: f64,
+    // ) -> Vec<Vec<f64>> {
+    //     let mut paths = Vec::with_capacity(self.nr_paths);
+    //     let mut rng = rand::thread_rng();
+    //     let distr = generator.distribution(&mut rng);
+
+    //     for _ in 0..self.nr_paths {
+    //         // TODO: try to pass it as ref
+    //         // maybe parallelize if it's a hotpath
+    //         let randoms = &distr.take(self.nr_steps);
+    //         let distr = generator.distribution(&mut rng);
+    //         let path = generator.sample_path(initial_value, self.nr_steps, distr);
+    //         paths.push(path);
+    //     }
+    //     paths
+    // }
 }
 
 pub type Path = Vec<f64>;
@@ -87,7 +108,6 @@ pub struct PathEvaluator<'a> {
 }
 
 impl<'a> PathEvaluator<'a> {
-
     pub fn new(paths: &'a Vec<Path>) -> Self {
         Self { paths }
     }
@@ -113,104 +133,6 @@ impl<'a> PathEvaluator<'a> {
     }
 }
 
-
-pub struct DerivativeParameter {
-    /// the asset's price at time t
-    pub asset_price: f64,
-    /// the strike or exercise price of the asset
-    pub strike: f64,
-    /// (T - t) in years, where T is the time of the option's expiration and t is the current time
-    pub time_to_expiration: f64,
-    /// the annualized risk-free interest rate
-    pub rfr: f64,
-    /// the annualized standard deviation of the stock's returns
-    pub vola: f64,
-}
-
-impl DerivativeParameter {
-    pub fn new(
-        asset_price: f64,
-        strike: f64,
-        time_to_expiration: f64,
-        rfr: f64,
-        vola: f64,
-    ) -> Self {
-        Self {
-            asset_price,
-            strike,
-            time_to_expiration,
-            rfr,
-            vola,
-        }
-    }
-}
-
-pub struct MonteCarloEuropeanOption {
-    option_params: DerivativeParameter,
-    mc_simulator: MonteCarloPathSimulator
-}
-
-impl MonteCarloEuropeanOption {
-
-    pub fn new(asset_price: f64,
-        strike: f64,
-        time_to_expiration: f64,
-        rfr: f64,
-        vola: f64,
-        nr_paths: usize,
-        nr_steps: usize) -> Self {
-            let option_params = DerivativeParameter::new(asset_price, strike, time_to_expiration, rfr, vola);
-            let mc_simulator = MonteCarloPathSimulator { nr_steps, nr_paths };
-            Self { option_params, mc_simulator }
-        }
-
-    fn dt(&self) -> f64 {
-        self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
-    }
-
-    fn call_payoff(&self, path: &Path) -> Option<f64> {
-        path.last().map(|p| {
-            (p - self.option_params.strike).max(0.0)
-        })
-    }
-
-    fn put_payoff(&self, path: &Path) -> Option<f64> {
-        path.last().map(|p| {
-            (self.option_params.strike - p).max(0.0)
-        })
-    }
-
-    fn create_paths(&self) -> Vec<Path> {
-        let gbm_generator : crate::simulation::gbm::GeometricBrownianMotion = self.into();
-        let paths = self.mc_simulator.simulate_paths(gbm_generator, self.option_params.asset_price);
-        paths
-    }
-
-    pub fn call(&self) -> Option<f64> {
-        let paths = self.create_paths();
-        let path_eval = PathEvaluator::new(&paths);
-        let payoff= |path| self.call_payoff(path);
-        path_eval.evaluate_average(payoff)
-    }
-
-    pub fn put(&self) -> Option<f64> {
-        let paths = self.create_paths();
-        let path_eval = PathEvaluator::new(&paths);
-        let payoff= |path| self.put_payoff(path);
-        path_eval.evaluate_average(payoff)
-    }
-}
-
-impl From<&MonteCarloEuropeanOption> for GeometricBrownianMotion {
-    fn from(mceo: &MonteCarloEuropeanOption) -> Self {
-        // under the risk neutral measure we have mu = r
-        // hence, if rfr = 0.0 then we have no drift term
-        let drift = mceo.option_params.rfr;
-        GeometricBrownianMotion::new(drift, mceo.option_params.vola, mceo.dt())
-    }
-}
-
-
 #[cfg(test)]
 mod tests {
     use std::vec;
@@ -223,7 +145,6 @@ mod tests {
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     const TOLERANCE: f64 = 1e-1;
-
 
     pub struct NormalPathGenerator;
 
@@ -256,7 +177,7 @@ mod tests {
         let paths_slice: Vec<Vec<f64>> = mc_simulator
             .simulate_paths(normal_gen, 0.0)
             .iter()
-            .map(|path| vec![ path.iter().fold(0.0, |acc, z| acc + z) ])
+            .map(|path| vec![path.iter().fold(0.0, |acc, z| acc + z)])
             .collect();
 
         assert_eq!(paths_slice.len(), 50_000);
@@ -300,7 +221,7 @@ mod tests {
         let stock_gbm = GeometricBrownianMotion::new(r, vola, dt);
         let mc_simulator = MonteCarloPathSimulator::new(100_000, nr_steps);
         let paths = mc_simulator.simulate_paths(stock_gbm, s0);
-    
+
         let path_eval = PathEvaluator::new(&paths);
         let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
 
@@ -309,26 +230,8 @@ mod tests {
     }
 
     #[test]
-    fn european_call_300() {
-        let mc_simulator = MonteCarloPathSimulator::new(10_000, 100);
-        let dp = DerivativeParameter::new(300.0, 250.0, 1.0, 0.03, 0.15);
-        let mcOption = MonteCarloEuropeanOption { mc_simulator, option_params: dp };
-        let call_price = mcOption.call();
-        assert_approx_eq!(call_price.unwrap(), 58.8197, TOLERANCE); // compare with analytic solution
-    }
-
-    #[test]
-    fn european_call_310() {
-        let mc_simulator = MonteCarloPathSimulator::new(10_000, 100);
-        let dp = DerivativeParameter::new(310.0, 250.0, 3.5, 0.05, 0.25);
-        let mcOption = MonteCarloEuropeanOption { mc_simulator, option_params: dp };
-        let call_price = mcOption.call();
-        assert_approx_eq!(call_price.unwrap(), 113.4155, TOLERANCE); // compare with analytic solution
-    }
-
-    #[test]
     fn path_eval() {
-        let paths = vec![ vec![ 1.0, 2.0], vec![ 3.0, 4.0], vec![] ];
+        let paths = vec![vec![1.0, 2.0], vec![3.0, 4.0], vec![]];
         let path_eval = PathEvaluator::new(&paths);
         let avg = path_eval.evaluate_average(|_| Some(1.0_f64));
         assert_eq!(avg.unwrap(), (1.0 + 1.0 + 1.0) / 3.0);

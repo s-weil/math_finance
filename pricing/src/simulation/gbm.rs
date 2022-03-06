@@ -1,10 +1,7 @@
 // https://medium.com/analytics-vidhya/monte-carlo-simulations-for-predicting-stock-prices-python-a64f53585662
 
 use crate::simulation::{PathGenerator, SampleGenerator};
-use rand::{
-    self,
-    prelude::{IteratorRandom, ThreadRng},
-};
+use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution, Normal};
 
 /// Model params for the SDE $dS_t / S_t = mu dt + sigma dW_t$, where $dW_t ~ N(0, sqrt(dt))$
