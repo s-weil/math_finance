@@ -15,3 +15,5 @@ add ndarray support
 benches
 
 https://raw.githubusercontent.com/xcycharles/derivatives/master/hw3%20monte%20carlo.py
+
+https://raw.githubusercontent.com/xcycharles/derivatives/master/hw3%20monte%20carlo.py

@@ -31,8 +31,8 @@ impl GeometricBrownianMotion {
     pub fn sample(&self, st: f64, z: f64) -> f64 {
         // let ret = self.dt * (self.mu - self.sigma.powi(2) / 2.0) + self.dt.sqrt() * self.sigma * z;
         // St * ret.exp()
-        let d_st = self.mu * self.dt + self.sigma * self.dt.sqrt() * z;
-        st + d_st * st // d_St = (S_t+1 - St)/St
+        let d_st = st * (self.mu * self.dt + self.sigma * self.dt.sqrt() * z);
+        st + d_st // d_St = S_t+1 - St
     }
 
     fn path_value(
