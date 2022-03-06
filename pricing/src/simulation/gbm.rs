@@ -1,22 +1,11 @@
 // https://medium.com/analytics-vidhya/monte-carlo-simulations-for-predicting-stock-prices-python-a64f53585662
 
-use rand::{self, prelude::ThreadRng};
-use rand_distr::{DistIter, Distribution, Normal};
 use crate::simulation::{PathGenerator, SampleGenerator};
-
-
-pub struct BlackScholesModelParams {
-    r: f64,
-    vola: f64,
-    dt: f64
-}
-
-impl From<BlackScholesModelParams> for GeometricBrownianMotion {
-    fn from(bs_params: BlackScholesModelParams) -> Self {
-        todo!("not yet implemtented");
-        GeometricBrownianMotion::new(0.0, 0.0, 0.0)
-    }
-}
+use rand::{
+    self,
+    prelude::{IteratorRandom, ThreadRng},
+};
+use rand_distr::{DistIter, Distribution, Normal};
 
 /// Model params for the SDE $dS_t / S_t = mu dt + sigma dW_t$, where $dW_t ~ N(0, sqrt(dt))$
 /// https://en.wikipedia.org/wiki/Geometric_Brownian_motion
@@ -29,27 +18,33 @@ pub struct GeometricBrownianMotion {
     dt: f64,
 }
 
-
 impl GeometricBrownianMotion {
     pub fn new(drift: f64, vola: f64, dt: f64) -> Self {
-        Self { mu: drift, dt, sigma: vola }
+        Self {
+            mu: drift,
+            dt,
+            sigma: vola,
+        }
     }
 
-    /// See the solution of https://en.wikipedia.org/wiki/Geometric_Brownian_motion
-    pub fn sample(&self, s0: f64, z: f64) -> f64 {
-        let ret = self.dt * (self.mu + self.sigma.powi(2) / 2.0 * z);
-        s0 * ret.exp()
+    /// See https://en.wikipedia.org/wiki/Geometric_Brownian_motion
+    pub fn sample(&self, st: f64, z: f64) -> f64 {
+        // let ret = self.dt * (self.mu - self.sigma.powi(2) / 2.0) + self.dt.sqrt() * self.sigma * z;
+        // St * ret.exp()
+        let d_st = self.mu * self.dt + self.sigma * self.dt.sqrt() * z;
+        st + d_st * st // d_St = (S_t+1 - St)/St
     }
 
-    pub fn get_samples(
+    fn path_value(
         &self,
-        price: f64,
-        nr_samples: usize,
-        normal_distr: DistIter<Normal<f64>, &mut ThreadRng, f64>,
+        s0: f64,
+        nr_steps: usize,
+        dist_iter: DistIter<Normal<f64>, &mut ThreadRng, f64>,
+        // normal_distr: impl Iterator<Item = f64>,
     ) -> f64 {
-        normal_distr
-            .take(nr_samples)
-            .fold(price, |curr_p, z| self.sample(curr_p, z))
+        dist_iter
+            .take(nr_steps)
+            .fold(s0, |curr_p, z| self.sample(curr_p, z))
     }
 
     pub fn sample_path(
@@ -72,7 +67,6 @@ impl GeometricBrownianMotion {
     }
 }
 
-
 impl PathGenerator for GeometricBrownianMotion {
     type Dist = Normal<f64>;
 
@@ -93,23 +87,23 @@ impl PathGenerator for GeometricBrownianMotion {
     }
 }
 
+// impl SampleGenerator for GeometricBrownianMotion {
+//     type Dist = Normal<f64>;
 
-impl SampleGenerator for GeometricBrownianMotion {
-    type Dist = Normal<f64>;
+//     fn sample_value(
+//         &self,
+//         price: f64,
+//         // dist_iter: impl Iterator<Item = f64>,
+//         nr_steps: usize,
+//         dist_iter: &DistIter<Self::Dist, &mut ThreadRng, f64>,
+//     ) -> f64 {
+//         self.sample_value(price, nr_steps, dist_iter)
+//     }
 
-    fn sample(
-        &self,
-        price: f64,
-        nr_samples: usize,
-        dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
-    ) -> f64 {
-        self.get_samples(price, nr_samples, dist_iter)
-    }   
-
-    fn distribution<'a>(
-        &self,
-        rng: &'a mut ThreadRng,
-    ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-        Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
-    }
-}
+//     fn distribution<'a>(
+//         &self,
+//         rng: &'a mut ThreadRng,
+//     ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
+//         Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
+//     }
+// }
