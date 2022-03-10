@@ -13,7 +13,7 @@ pub trait McDistIter {
 pub trait PathGenerator: McDistIter {
     fn sample_path(
         &self,
-        current: f64,
+        current: f64, // TODO: move it to GBM
         nr_steps: usize,
         dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
     ) -> Vec<f64>;
@@ -82,15 +82,15 @@ impl MonteCarloPathSimulator {
         &self,
         generator: impl PathGenerator,
         initial_value: f64,
-        path_fn: impl Fn(&Path) -> Option<f64>,
-    ) -> Vec<Option<f64>> {
+        path_fn: impl Fn(Path) -> Option<f64>,
+    ) -> Vec<Option<f64>>  {
         let mut paths = Vec::with_capacity(self.nr_paths);
         let mut rng = rand::thread_rng();
 
         for _ in 0..self.nr_paths {
             let distr = generator.distribution(&mut rng);
             let path = generator.sample_path(initial_value, self.nr_steps, distr);
-            let v = path_fn(&path);
+            let v = path_fn(path);
             paths.push(v);
         }
         paths
@@ -98,6 +98,7 @@ impl MonteCarloPathSimulator {
 }
 
 pub type Path = Vec<f64>;
+pub type PathSlice = [f64];
 
 pub struct PathEvaluator<'a> {
     paths: &'a [Path],

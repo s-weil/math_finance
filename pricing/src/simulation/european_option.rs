@@ -1,6 +1,6 @@
 use crate::common::models::DerivativeParameter;
 use crate::simulation::gbm::GeometricBrownianMotion;
-use crate::simulation::monte_carlo::{MonteCarloPathSimulator, Path, PathEvaluator};
+use crate::simulation::monte_carlo::{MonteCarloPathSimulator, Path};
 
 pub struct MonteCarloEuropeanOption {
     option_params: DerivativeParameter,
@@ -30,34 +30,37 @@ impl MonteCarloEuropeanOption {
         self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
     }
 
-    fn call_payoff(&self, path: &Path) -> Option<f64> {
+    fn call_payoff(&self, path: Path) -> Option<f64> {
         path.last()
             .map(|p| (p - self.option_params.strike).max(0.0))
     }
 
-    fn put_payoff(&self, path: &Path) -> Option<f64> {
+    fn put_payoff(&self, path: Path) -> Option<f64> {
         path.last()
             .map(|p| (self.option_params.strike - p).max(0.0))
     }
 
-    fn create_paths(&self) -> Vec<Path> {
+    fn sample_payoffs(&self, path_fn: impl Fn(Path) -> Option<f64>) -> Vec<Option<f64>> {
         let gbm_generator: crate::simulation::gbm::GeometricBrownianMotion = self.into();
         self.mc_simulator
-            .simulate_paths(gbm_generator, self.option_params.asset_price)
+            .simulate_paths_with(gbm_generator, self.option_params.asset_price, path_fn)
+    }
+
+    fn average(&self, payoffs: &[Option<f64>]) -> Option<f64> {
+        let total = payoffs.iter().fold(0.0, |acc, po| acc + po.unwrap_or(0.0));
+        Some(total / payoffs.len() as f64)
     }
 
     pub fn call(&self) -> Option<f64> {
-        let paths = self.create_paths();
-        let path_eval = PathEvaluator::new(&paths);
         let payoff = |path| self.call_payoff(path);
-        path_eval.evaluate_average(payoff)
+        let sample_payoffs = self.sample_payoffs(payoff);
+        self.average(&sample_payoffs)
     }
 
     pub fn put(&self) -> Option<f64> {
-        let paths = self.create_paths();
-        let path_eval = PathEvaluator::new(&paths);
         let payoff = |path| self.put_payoff(path);
-        path_eval.evaluate_average(payoff)
+        let sample_payoffs = self.sample_payoffs(payoff);
+        self.average(&sample_payoffs)
     }
 }
 
@@ -80,15 +83,15 @@ mod tests {
 
     #[test]
     fn european_call_300() {
-        let mcOption = MonteCarloEuropeanOption::new(300.0, 250.0, 1.0, 0.03, 0.15, 10_000, 100);
-        let call_price = mcOption.call();
+        let mc_option = MonteCarloEuropeanOption::new(300.0, 250.0, 1.0, 0.03, 0.15, 100_000, 100);
+        let call_price = mc_option.call();
         assert_approx_eq!(call_price.unwrap(), 58.8197, TOLERANCE); // compare with analytic solution
     }
 
     #[test]
     fn european_call_310() {
-        let mcOption = MonteCarloEuropeanOption::new(310.0, 250.0, 3.5, 0.05, 0.25, 10_000, 100);
-        let call_price = mcOption.call();
+        let mc_option = MonteCarloEuropeanOption::new(310.0, 250.0, 3.5, 0.05, 0.25, 100_000, 100);
+        let call_price = mc_option.call();
         assert_approx_eq!(call_price.unwrap(), 113.4155, TOLERANCE); // compare with analytic solution
     }
 }
