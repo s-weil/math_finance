@@ -4,7 +4,10 @@ use crate::simulation::{PathGenerator, SampleGenerator};
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution, Normal};
 
-/// Model params for the SDE $dS_t / S_t = mu dt + sigma dW_t$, where $dW_t ~ N(0, sqrt(dt))$
+/// Model params for the SDE
+/// '''math
+/// dS_t / S_t = mu dt + sigma dW_t
+/// ''', where '$dW_t ~ N(0, sqrt(dt))$'
 /// https://en.wikipedia.org/wiki/Geometric_Brownian_motion
 pub struct GeometricBrownianMotion {
     /// drift term

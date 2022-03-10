@@ -16,4 +16,4 @@ benches
 
 https://raw.githubusercontent.com/xcycharles/derivatives/master/hw3%20monte%20carlo.py
 
-https://raw.githubusercontent.com/xcycharles/derivatives/master/hw3%20monte%20carlo.py
+todo: perf improvement: either sample in parallel, or already in mc, or path evaluation within mcsimulator?

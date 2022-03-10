@@ -13,3 +13,10 @@ rand = "0.8.5"
 rand_distr = "0.4.3"
 probability = "0.17.0"
 assert_approx_eq = "1.1.0"
+
+[dev-dependencies]
+criterion = "0.3.5"
+
+[[bench]]
+name = "mc_benchmark"
+harness = false
