@@ -1,17 +1,8 @@
-use crate::common::models::DerivativeParameter;
-use crate::simulation::gbm::GeometricBrownianMotion;
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution};
 
-pub trait PathGenerator {
+pub trait McDistIter {
     type Dist: Distribution<f64>;
-
-    fn sample_path(
-        &self,
-        current: f64,
-        nr_steps: usize,
-        dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
-    ) -> Vec<f64>;
 
     fn distribution<'a>(
         &self,
@@ -19,15 +10,22 @@ pub trait PathGenerator {
     ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64>;
 }
 
-pub trait SampleGenerator {
-    type Dist: Distribution<f64>;
-
-    fn sample(&self, current: f64, random_nr: f64) -> f64;
-
-    fn distribution<'a>(
+pub trait PathGenerator: McDistIter {
+    fn sample_path(
         &self,
-        // rng: &'a mut ThreadRng,
-    ) -> Self::Dist; // DistIter<Self::Dist, &'a mut ThreadRng, f64>;
+        current: f64,
+        nr_steps: usize,
+        dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
+    ) -> Vec<f64>;
+
+    // fn distribution<'a>(
+    //     &self,
+    //     rng: &'a mut ThreadRng,
+    // ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64>;
+}
+
+pub trait SampleGenerator: McDistIter {
+    fn sample(&self, current: f64, random_nr: f64) -> f64;
 }
 
 // pub struct MonteCarloSamples {
@@ -90,8 +88,6 @@ impl MonteCarloPathSimulator {
         let mut rng = rand::thread_rng();
 
         for _ in 0..self.nr_paths {
-            // TODO: try to pass it as ref
-            // maybe parallelize if it's a hotpath
             let distr = generator.distribution(&mut rng);
             let path = generator.sample_path(initial_value, self.nr_steps, distr);
             let v = path_fn(&path);
@@ -99,36 +95,16 @@ impl MonteCarloPathSimulator {
         }
         paths
     }
-
-    // pub fn simulate_paths2(
-    //     &self,
-    //     generator: impl PathGenerator,
-    //     initial_value: f64,
-    // ) -> Vec<Vec<f64>> {
-    //     let mut paths = Vec::with_capacity(self.nr_paths);
-    //     let mut rng = rand::thread_rng();
-    //     let distr = generator.distribution(&mut rng);
-
-    //     for _ in 0..self.nr_paths {
-    //         // TODO: try to pass it as ref
-    //         // maybe parallelize if it's a hotpath
-    //         let randoms = &distr.take(self.nr_steps);
-    //         let distr = generator.distribution(&mut rng);
-    //         let path = generator.sample_path(initial_value, self.nr_steps, distr);
-    //         paths.push(path);
-    //     }
-    //     paths
-    // }
 }
 
 pub type Path = Vec<f64>;
 
 pub struct PathEvaluator<'a> {
-    paths: &'a Vec<Path>,
+    paths: &'a [Path],
 }
 
 impl<'a> PathEvaluator<'a> {
-    pub fn new(paths: &'a Vec<Path>) -> Self {
+    pub fn new(paths: &'a [Path]) -> Self {
         Self { paths }
     }
 
@@ -168,9 +144,18 @@ mod tests {
 
     pub struct NormalPathGenerator;
 
-    impl PathGenerator for NormalPathGenerator {
+    impl McDistIter for NormalPathGenerator {
         type Dist = Normal<f64>;
 
+        fn distribution<'a>(
+            &self,
+            rng: &'a mut ThreadRng,
+        ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
+            Normal::new(0.5, 1.0).unwrap().sample_iter(rng)
+        }
+    }
+
+    impl PathGenerator for NormalPathGenerator {
         fn sample_path(
             &self,
             _price: f64,
@@ -178,13 +163,6 @@ mod tests {
             dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
         ) -> Vec<f64> {
             dist_iter.take(nr_steps).collect()
-        }
-
-        fn distribution<'a>(
-            &self,
-            rng: &'a mut ThreadRng,
-        ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-            Normal::new(0.5, 1.0).unwrap().sample_iter(rng)
         }
     }
 
@@ -239,18 +217,12 @@ mod tests {
         let s0 = 300.0;
 
         let stock_gbm = GeometricBrownianMotion::new(r, vola, dt);
-        let mc_simulator = MonteCarloPathSimulator::new(100_000, nr_steps);
+        let mc_simulator = MonteCarloPathSimulator::new(10_000, nr_steps);
         let paths = mc_simulator.simulate_paths(stock_gbm, s0);
 
         let path_eval = PathEvaluator::new(&paths);
         let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
-
-        // precision depends on nr_samples and other inputs
-        // assert_approx_eq!(avg_price.unwrap(), s0, TOLERANCE);
-
-        let stock_gbm = GeometricBrownianMotion::new(r, vola, dt);
-        let paths = mc_simulator.simulate_paths_with(stock_gbm, s0, |path| path.last().cloned());
-        println!("done");
+        assert_approx_eq!(avg_price.unwrap(), s0, TOLERANCE);
     }
 
     #[test]

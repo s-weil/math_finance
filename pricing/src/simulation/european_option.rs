@@ -42,10 +42,8 @@ impl MonteCarloEuropeanOption {
 
     fn create_paths(&self) -> Vec<Path> {
         let gbm_generator: crate::simulation::gbm::GeometricBrownianMotion = self.into();
-        let paths = self
-            .mc_simulator
-            .simulate_paths(gbm_generator, self.option_params.asset_price);
-        paths
+        self.mc_simulator
+            .simulate_paths(gbm_generator, self.option_params.asset_price)
     }
 
     pub fn call(&self) -> Option<f64> {
@@ -74,8 +72,6 @@ impl From<&MonteCarloEuropeanOption> for GeometricBrownianMotion {
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
-
     use super::*;
     use assert_approx_eq::assert_approx_eq;
 

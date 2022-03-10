@@ -1,8 +1,10 @@
 // https://medium.com/analytics-vidhya/monte-carlo-simulations-for-predicting-stock-prices-python-a64f53585662
 
-use crate::simulation::{PathGenerator, SampleGenerator};
+use crate::simulation::PathGenerator;
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution, Normal};
+
+use super::monte_carlo::McDistIter;
 
 /// Model params for the SDE
 /// '''math
@@ -35,6 +37,7 @@ impl GeometricBrownianMotion {
         st + d_st // d_St = S_t+1 - St
     }
 
+    /*/
     fn path_value(
         &self,
         s0: f64,
@@ -46,6 +49,7 @@ impl GeometricBrownianMotion {
             .take(nr_steps)
             .fold(s0, |curr_p, z| self.sample(curr_p, z))
     }
+    */
 
     pub fn sample_path(
         &self,
@@ -60,16 +64,25 @@ impl GeometricBrownianMotion {
 
         for z in normal_distr.take(nr_steps) {
             curr_p = self.sample(curr_p, z);
-            path.push(curr_p)
+            path.push(curr_p);
         }
 
         path
     }
 }
 
-impl PathGenerator for GeometricBrownianMotion {
+impl McDistIter for GeometricBrownianMotion {
     type Dist = Normal<f64>;
 
+    fn distribution<'a>(
+        &self,
+        rng: &'a mut ThreadRng,
+    ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
+        Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
+    }
+}
+
+impl PathGenerator for GeometricBrownianMotion {
     fn sample_path(
         &self,
         price: f64,
@@ -77,13 +90,6 @@ impl PathGenerator for GeometricBrownianMotion {
         dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
     ) -> Vec<f64> {
         self.sample_path(price, nr_steps, dist_iter)
-    }
-
-    fn distribution<'a>(
-        &self,
-        rng: &'a mut ThreadRng,
-    ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-        Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
     }
 }
 

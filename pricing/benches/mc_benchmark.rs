@@ -7,6 +7,11 @@ use pricing::simulation::GeometricBrownianMotion;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
+// criterion_group!{
+//     name = benches;
+//     config = Criterion::default().measurement_time(std::time::Duration::from_secs(100));
+//     target = criterion_stock_price_simulation;
+// }
 criterion_group!(benches, criterion_stock_price_simulation);
 criterion_main!(benches);
 
@@ -15,12 +20,11 @@ pub fn criterion_stock_price_simulation(c: &mut Criterion) {
 
     group.bench_function(
         "apply a path function to each path directly (do not store paths)",
-        |b| b.iter(|| simulate_paths_with_path_fn(black_box(100_000))),
+        |b| b.iter(|| simulate_paths_with_path_fn(black_box(10_000))),
     );
-    group.bench_function(
-        "apply a path function on the stored paths",
-        |b| b.iter(|| simulate_paths_with_path_generator(black_box(100_000))),
-    );
+    group.bench_function("apply a path function on the stored paths", |b| {
+        b.iter(|| simulate_paths_with_path_generator(black_box(10_000)))
+    });
 
     group.finish()
 }
@@ -29,7 +33,7 @@ fn simulate_paths_with_path_fn(nr_paths: usize) {
     let vola = 50.0 / 365.0;
     let drift = 0.01;
     let dt = 0.1;
-    let nr_steps = 100;
+    let nr_steps = 500;
     let s0 = 300.0;
 
     let stock_gbm = GeometricBrownianMotion::new(drift, vola, dt);
@@ -45,7 +49,7 @@ fn simulate_paths_with_path_generator(nr_paths: usize) {
     let vola = 50.0 / 365.0;
     let drift = 0.01;
     let dt = 0.1;
-    let nr_steps = 100;
+    let nr_steps = 500;
     let s0 = 300.0;
 
     let stock_gbm = GeometricBrownianMotion::new(drift, vola, dt);
