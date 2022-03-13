@@ -8,7 +8,7 @@
 
 use crate::common::models::DerivativeParameter;
 
-use crate::simulation::monte_carlo::{MonteCarloPathSimulator};
+use crate::simulation::monte_carlo::MonteCarloPathSimulator;
 
 pub struct MonteCarloBasketOption {
     option_params: DerivativeParameter,

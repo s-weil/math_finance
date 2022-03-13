@@ -13,7 +13,6 @@ pub trait McDistIter {
 pub trait PathGenerator: McDistIter {
     fn sample_path(
         &self,
-        current: f64, // TODO: move it to GBM
         nr_steps: usize,
         dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
     ) -> Vec<f64>;
@@ -60,11 +59,7 @@ impl MonteCarloPathSimulator {
         Self { nr_paths, nr_steps }
     }
 
-    pub fn simulate_paths(
-        &self,
-        generator: impl PathGenerator,
-        initial_value: f64,
-    ) -> Vec<Vec<f64>> {
+    pub fn simulate_paths(&self, generator: impl PathGenerator) -> Vec<Vec<f64>> {
         let mut paths = Vec::with_capacity(self.nr_paths);
         let mut rng = rand::thread_rng();
 
@@ -72,7 +67,7 @@ impl MonteCarloPathSimulator {
             // TODO: try to pass it as ref
             // maybe parallelize if it's a hotpath
             let distr = generator.distribution(&mut rng);
-            let path = generator.sample_path(initial_value, self.nr_steps, distr);
+            let path = generator.sample_path(self.nr_steps, distr);
             paths.push(path);
         }
         paths
@@ -81,7 +76,6 @@ impl MonteCarloPathSimulator {
     pub fn simulate_paths_with(
         &self,
         generator: impl PathGenerator,
-        initial_value: f64,
         path_fn: impl Fn(Path) -> Option<f64>,
     ) -> Vec<Option<f64>> {
         let mut paths = Vec::with_capacity(self.nr_paths);
@@ -89,7 +83,7 @@ impl MonteCarloPathSimulator {
 
         for _ in 0..self.nr_paths {
             let distr = generator.distribution(&mut rng);
-            let path = generator.sample_path(initial_value, self.nr_steps, distr);
+            let path = generator.sample_path(self.nr_steps, distr);
             let v = path_fn(path);
             paths.push(v);
         }
@@ -159,7 +153,6 @@ mod tests {
     impl PathGenerator for NormalPathGenerator {
         fn sample_path(
             &self,
-            _price: f64,
             nr_steps: usize,
             dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
         ) -> Vec<f64> {
@@ -174,7 +167,7 @@ mod tests {
         let mc_simulator = MonteCarloPathSimulator::new(50_000, 100);
 
         let paths_slice: Vec<Vec<f64>> = mc_simulator
-            .simulate_paths(normal_gen, 0.0)
+            .simulate_paths(normal_gen)
             .iter()
             .map(|path| vec![path.iter().fold(0.0, |acc, z| acc + z)])
             .collect();
@@ -191,22 +184,25 @@ mod tests {
 
     #[test]
     fn stock_price_simulation() {
-        let drift = 0.01;
-        let vola = 0.03;
-        let dt = 0.5;
+        let nr_paths = 100_000;
+        let nr_steps = 100;
+        let drift = -0.2;
+        let vola = 0.4;
         let s0 = 100.0;
+        let nr_steps = 100;
+        let tte = 5.0;
+        let dt = tte / nr_steps as f64;
 
-        let stock_gbm = GeometricBrownianMotion::new(drift, vola, dt);
-        let mc_simulator = MonteCarloPathSimulator::new(5_000, 100);
-        let paths = mc_simulator.simulate_paths(stock_gbm, s0);
-        assert_eq!(paths.len(), 5_000);
+        let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
+        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+        let paths = mc_simulator.simulate_paths(stock_gbm);
+        assert_eq!(paths.len(), nr_paths);
 
         // expected value should equal analytic solution
         let path_eval = PathEvaluator::new(&paths);
-        let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
-        let tte = 100.0 * dt;
-        let exp_price = s0 * (tte * (drift - vola.powi(2) / 2.0)).exp();
-        assert_eq!(exp_price, avg_price.unwrap());
+        let avg_delta = path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p/s0).ln()) );
+        let exp_delta = tte * (drift - vola.powi(2) / 2.0);
+        assert_approx_eq!(avg_delta.unwrap(), exp_delta, TOLERANCE);
     }
 
     #[test]
@@ -217,9 +213,9 @@ mod tests {
         let nr_steps = 100;
         let s0 = 300.0;
 
-        let stock_gbm = GeometricBrownianMotion::new(r, vola, dt);
+        let stock_gbm = GeometricBrownianMotion::new(s0, r, vola, dt);
         let mc_simulator = MonteCarloPathSimulator::new(10_000, nr_steps);
-        let paths = mc_simulator.simulate_paths(stock_gbm, s0);
+        let paths = mc_simulator.simulate_paths(stock_gbm);
 
         let path_eval = PathEvaluator::new(&paths);
         let avg_price = path_eval.evaluate_average(|path| path.last().cloned());

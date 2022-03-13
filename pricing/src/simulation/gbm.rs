@@ -12,6 +12,7 @@ use super::monte_carlo::McDistIter;
 /// ''', where '$dW_t ~ N(0, sqrt(dt))$'
 /// https://en.wikipedia.org/wiki/Geometric_Brownian_motion
 pub struct GeometricBrownianMotion {
+    initial_value: f64,
     /// drift term
     mu: f64,
     /// volatility
@@ -21,8 +22,9 @@ pub struct GeometricBrownianMotion {
 }
 
 impl GeometricBrownianMotion {
-    pub fn new(drift: f64, vola: f64, dt: f64) -> Self {
+    pub fn new(initial_value: f64, drift: f64, vola: f64, dt: f64) -> Self {
         Self {
+            initial_value,
             mu: drift,
             dt,
             sigma: vola,
@@ -85,11 +87,10 @@ impl McDistIter for GeometricBrownianMotion {
 impl PathGenerator for GeometricBrownianMotion {
     fn sample_path(
         &self,
-        price: f64,
         nr_steps: usize,
         dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
     ) -> Vec<f64> {
-        self.sample_path(price, nr_steps, dist_iter)
+        self.sample_path(self.initial_value, nr_steps, dist_iter)
     }
 }
 
