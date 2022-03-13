@@ -4,7 +4,7 @@ use std::ops::{Div, Sub};
 pub trait Rational {
     type Numeric;
 
-    fn not_divisible(&self, threshold: Option<Self::Numeric>) -> bool;
+    fn is_divisible(&self, threshold: Option<Self::Numeric>) -> bool;
 }
 
 #[macro_export]
@@ -12,10 +12,13 @@ macro_rules! impl_numeric {
     ($impl_type:ty) => {
         impl Rational for $impl_type {
             type Numeric = $impl_type;
-            fn not_divisible(&self, tolerance: Option<Self::Numeric>) -> bool {
+            fn is_divisible(&self, tolerance: Option<Self::Numeric>) -> bool {
+                if *self == <$impl_type>::NAN || *self == <$impl_type>::MIN || *self == <$impl_type>::MAX {
+                    return false;
+                }
                 match tolerance {
-                    Some(tol) => self.abs() < tol,
-                    None => self.abs() == 0.0,
+                    Some(tol) => self.abs() >= tol,
+                    None => self.abs() != 0.0,
                 }
             }
         }
@@ -29,16 +32,16 @@ impl_numeric! { f64 }
 pub(crate) fn asset_bmk_ratio<N>(
     asset_return: N,
     benchmark_return: N,
-    asset_std: N,
+    excess_std: N,
     threshold: Option<N>,
 ) -> Result<N, RiskError>
 where
     N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
 {
-    if asset_std.not_divisible(threshold) {
+    if !(excess_std.is_divisible(threshold)) {
         return Err(RiskError::ZeroDivision);
     }
-    let ratio = (asset_return - benchmark_return) / asset_std;
+    let ratio = (asset_return - benchmark_return) / excess_std;
     Ok(ratio)
 }
 
@@ -79,32 +82,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sharpe_ratio_f32() {
+    fn asset_bmk_ratio_f32() {
         assert_eq!(
-            sharpe_ratio(0.2_f32, 0.1_f32, 1.0_f32, None).unwrap(),
+            asset_bmk_ratio(0.2_f32, 0.1_f32, 1.0_f32, None).unwrap(),
             0.1_f32
         );
         assert_eq!(
-            sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, None).unwrap(),
+            asset_bmk_ratio(0.2_f32, 0.1_f32, 0.01_f32, None).unwrap(),
             10.0_f32
         );
 
-        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.05)).is_err());
-        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.01)).is_ok());
+        assert!(asset_bmk_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.05)).is_err());
+        assert!(asset_bmk_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.01)).is_ok());
     }
 
     #[test]
-    fn sharpe_ratio_f64() {
+    fn asset_bmk_ratio_f64() {
         assert_eq!(
-            sharpe_ratio(0.2_f32, 0.1_f32, 1.0_f32, None).unwrap(),
-            0.1_f32
+            asset_bmk_ratio(0.2_f64, 0.1_f64, 1.0_f64, None).unwrap(),
+            0.1_f64
         );
         assert_eq!(
-            sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, None).unwrap(),
-            10.0_f32
+            asset_bmk_ratio(0.2_f64, 0.1_f64, 0.01_f64, None).unwrap(),
+            10.0_f64
         );
 
-        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.05)).is_err());
-        assert!(sharpe_ratio(0.2_f32, 0.1_f32, 0.01_f32, Some(0.01)).is_ok());
+        assert!(asset_bmk_ratio(0.2_f64, 0.1_f64, 0.01_f64, Some(0.05)).is_err());
+        assert!(asset_bmk_ratio(0.2_f64, 0.1_f64, 0.01_f64, Some(0.01)).is_ok());
     }
 }
