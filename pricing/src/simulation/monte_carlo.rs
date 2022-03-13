@@ -1,5 +1,8 @@
+use std::borrow::BorrowMut;
+
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution};
+
 
 pub trait McDistIter {
     type Dist: Distribution<f64>;
@@ -200,7 +203,8 @@ mod tests {
 
         // expected value should equal analytic solution
         let path_eval = PathEvaluator::new(&paths);
-        let avg_delta = path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p/s0).ln()) );
+        let avg_delta =
+            path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p / s0).ln()));
         let exp_delta = tte * (drift - vola.powi(2) / 2.0);
         assert_approx_eq!(avg_delta.unwrap(), exp_delta, TOLERANCE);
     }
@@ -209,7 +213,7 @@ mod tests {
     fn no_drift_stock_price_simulation() {
         let nr_paths = 100_000;
         let nr_steps = 100;
-        let vola : f64 = 0.4;
+        let vola: f64 = 0.4;
         let drift = vola.powi(2) / 2.0;
         let s0 = 100.0;
         let nr_steps = 100;
@@ -222,7 +226,8 @@ mod tests {
 
         let path_eval = PathEvaluator::new(&paths);
 
-        let avg_delta = path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p/s0).ln()) );
+        let avg_delta =
+            path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p / s0).ln()));
         let exp_delta = 0.0; // tte * (drift - vola.powi(2) / 2.0);
         assert_approx_eq!(avg_delta.unwrap(), exp_delta, TOLERANCE);
 
@@ -242,5 +247,124 @@ mod tests {
 
         let avg = path_eval.evaluate_average(|path| path.last().cloned());
         assert_eq!(avg.unwrap(), (2.0 + 4.0) / 3.0);
+    }
+
+
+    use rand::{Rng, SeedableRng};
+    use rand_hc::Hc128Rng;
+
+    pub trait McSampler {
+        type Dist: Distribution<f64>;
+
+        fn generator(&self, seed_nr: u64) -> Hc128Rng {
+            rand_hc
+            ::Hc128Rng
+            ::seed_from_u64(
+                seed_nr,
+            )
+        }
+
+        // fn distr(&self) -> Self::Dist;
+
+        // fn samples(
+        //     &mut self,
+        //     nr_samples: usize
+        // ) -> Vec<f64>; // DistIter<Self::Dist, Hc128Rng, f64>;
+
+        fn dist_iter<'a>(
+            // &mut self,
+            &self,
+            generator: &'a mut Hc128Rng,
+        ) -> DistIter<Self::Dist, &'a mut Hc128Rng, f64>;
+    }
+
+    pub struct NormalNumberSampler {
+        pub mu: f64,
+        pub sigma: f64,
+        // generator: Hc128Rng,
+        distribution: Normal<f64>,
+    }
+
+    impl NormalNumberSampler {
+        pub fn new(mu: f64, sigma: f64) -> Self {
+            let distribution = Normal::new(mu, sigma).unwrap();
+            Self {
+                mu,
+                sigma,
+                distribution,
+            }
+        }
+    }
+
+
+    impl McSampler for NormalNumberSampler {
+        type Dist = Normal<f64>;
+        // fn generator(&self, seed_nr: u64) -> Hc128Rng {
+        //     rand_hc
+        //         ::Hc128Rng
+        //         ::seed_from_u64(
+        //             seed_nr,
+        //         )
+        // }
+
+        // fn distr(&self) -> Self::Dist {
+        //     Normal::new(self.mu, self.sigma).unwrap()
+        // }
+
+        // fn samples(
+        //     &mut self,
+        //     nr_samples: usize
+        // ) -> Vec<f64> {
+        //     let gen = self.generator.borrow_mut();
+        //     gen.sample_iter(self.distribution).take(nr_samples).collect()
+        // }
+
+        fn dist_iter<'a>(
+            // &mut self,
+            &self,
+            generator: &'a mut Hc128Rng,
+        ) -> DistIter<Self::Dist, &'a mut Hc128Rng, f64> {
+            generator.sample_iter(self.distribution)
+        }
+    }
+
+    #[test]
+    fn normal_sampled_paths() {
+        let nr_steps = 100;
+        let nr_paths = 100_000;
+        let mut paths = Vec::with_capacity(nr_paths);
+
+        let normal_sampler = NormalNumberSampler::new(0.5, 0.3);
+        let mut generator = normal_sampler.generator(41);
+
+        for _ in 0..nr_paths {
+            // TODO: try to pass it as ref
+            // maybe parallelize if it's a hotpath
+            let distr = normal_sampler.dist_iter(&mut generator);
+            let path : Vec<f64> = distr.take(nr_steps).collect();
+            // let path = generator.sample_path(self.nr_steps, distr);
+            paths.push(path);
+        }
+        assert_eq!(paths.len(), nr_paths);        
+    }
+
+    #[test]
+    fn normal_sampled_paths_end() {
+        let nr_steps = 100;
+        let nr_paths = 100_000;
+        let mut paths = Vec::with_capacity(nr_paths);
+
+        let normal_sampler = NormalNumberSampler::new(0.5, 0.3);
+        let mut generator = normal_sampler.generator(41);
+
+        for _ in 0..nr_paths {
+            // TODO: try to pass it as ref
+            // maybe parallelize if it's a hotpath
+            let distr = normal_sampler.dist_iter(&mut generator);
+            let path : f64 = distr.take(nr_steps).fold(0.0, |acc, z| acc + z);
+            // let path = generator.sample_path(self.nr_steps, distr);
+            paths.push(path);
+        }
+        assert_eq!(paths.len(), nr_paths);        
     }
 }

@@ -11,6 +11,7 @@ description = "Derivatives pricing"
 [dependencies]
 rand = "0.8.5"
 rand_distr = "0.4.3"
+rand_hc = "0.3.0"
 probability = "0.18.0"
 assert_approx_eq = "1.1.0"
 
