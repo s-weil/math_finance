@@ -83,7 +83,7 @@ impl MonteCarloPathSimulator {
         generator: impl PathGenerator,
         initial_value: f64,
         path_fn: impl Fn(Path) -> Option<f64>,
-    ) -> Vec<Option<f64>>  {
+    ) -> Vec<Option<f64>> {
         let mut paths = Vec::with_capacity(self.nr_paths);
         let mut rng = rand::thread_rng();
 

@@ -42,8 +42,11 @@ impl MonteCarloEuropeanOption {
 
     fn sample_payoffs(&self, path_fn: impl Fn(Path) -> Option<f64>) -> Vec<Option<f64>> {
         let gbm_generator: crate::simulation::gbm::GeometricBrownianMotion = self.into();
-        self.mc_simulator
-            .simulate_paths_with(gbm_generator, self.option_params.asset_price, path_fn)
+        self.mc_simulator.simulate_paths_with(
+            gbm_generator,
+            self.option_params.asset_price,
+            path_fn,
+        )
     }
 
     fn average(&self, payoffs: &[Option<f64>]) -> Option<f64> {
@@ -83,7 +86,7 @@ mod tests {
 
     #[test]
     fn european_call_300() {
-        let mc_option = MonteCarloEuropeanOption::new(300.0, 250.0, 1.0, 0.03, 0.15, 100_000, 100);
+        let mc_option = MonteCarloEuropeanOption::new(300.0, 250.0, 1.0, 0.03, 0.15, 500_000, 100);
         let call_price = mc_option.call();
         assert_approx_eq!(call_price.unwrap(), 58.8197, TOLERANCE); // compare with analytic solution
     }
