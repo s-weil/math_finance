@@ -1,21 +1,18 @@
 use crate::error::RiskError;
-use std::ops::{Div, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
-pub trait Rational {
-    type Numeric;
-
-    fn is_divisible(&self, threshold: Option<Self::Numeric>) -> bool;
+/// Mimic the key features of a field.
+pub trait PseudoField:
+    Sized + Add<Output = Self> + Div<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
+{
+    fn is_divisible(&self, threshold: Option<Self>) -> bool;
 }
 
 #[macro_export]
 macro_rules! impl_numeric {
     ($impl_type:ty) => {
-        impl Rational for $impl_type {
-            type Numeric = $impl_type;
-            fn is_divisible(&self, tolerance: Option<Self::Numeric>) -> bool {
-                if *self == <$impl_type>::NAN || *self == <$impl_type>::MIN || *self == <$impl_type>::MAX {
-                    return false;
-                }
+        impl PseudoField for $impl_type {
+            fn is_divisible(&self, tolerance: Option<Self>) -> bool {
                 match tolerance {
                     Some(tol) => self.abs() >= tol,
                     None => self.abs() != 0.0,
@@ -29,14 +26,14 @@ impl_numeric! { f32 }
 impl_numeric! { f64 }
 // TODO: add bigint dependency and implementation with feature flag
 
-pub(crate) fn asset_bmk_ratio<N>(
-    asset_return: N,
-    benchmark_return: N,
-    excess_std: N,
-    threshold: Option<N>,
-) -> Result<N, RiskError>
+pub(crate) fn asset_bmk_ratio<Numeric>(
+    asset_return: Numeric,
+    benchmark_return: Numeric,
+    excess_std: Numeric,
+    threshold: Option<Numeric>,
+) -> Result<Numeric, RiskError>
 where
-    N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
+    Numeric: PseudoField,
 {
     if !(excess_std.is_divisible(threshold)) {
         return Err(RiskError::ZeroDivision);
@@ -49,14 +46,14 @@ where
 /// over the 'risk' (standard deviation) of the excess of asset and the risk-free-rate rates.
 /// Use the threshold for the division by 'risk'.
 /// See https://en.wikipedia.org/wiki/Sharpe_ratio
-pub fn sharpe_ratio<N>(
-    asset_return: N,
-    riskfree_rate: N,
-    excess_std: N,
-    threshold: Option<N>,
-) -> Result<N, RiskError>
+pub fn sharpe_ratio<Numeric>(
+    asset_return: Numeric,
+    riskfree_rate: Numeric,
+    excess_std: Numeric,
+    threshold: Option<Numeric>,
+) -> Result<Numeric, RiskError>
 where
-    N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
+    Numeric: PseudoField,
 {
     asset_bmk_ratio(asset_return, riskfree_rate, excess_std, threshold)
 }
@@ -65,14 +62,14 @@ where
 /// over the 'risk' (standard deviation) of the excess of asset and the benchmark returns.
 /// Use the threshold for the division by 'risk'.
 /// See https://en.wikipedia.org/wiki/Information_ratio
-pub fn information_ratio<N>(
-    asset_return: N,
-    benchmark_return: N,
-    excess_std: N,
-    threshold: Option<N>,
-) -> Result<N, RiskError>
+pub fn information_ratio<Numeric>(
+    asset_return: Numeric,
+    benchmark_return: Numeric,
+    excess_std: Numeric,
+    threshold: Option<Numeric>,
+) -> Result<Numeric, RiskError>
 where
-    N: Rational<Numeric = N> + Sub<Output = N> + Div<Output = N>,
+    Numeric: PseudoField,
 {
     asset_bmk_ratio(asset_return, benchmark_return, excess_std, threshold)
 }
