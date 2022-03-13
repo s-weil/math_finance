@@ -207,19 +207,27 @@ mod tests {
 
     #[test]
     fn no_drift_stock_price_simulation() {
-        let vola = 50.0 / 365.0;
-        let r = 0.0;
-        let dt = 0.1;
+        let nr_paths = 100_000;
         let nr_steps = 100;
-        let s0 = 300.0;
+        let vola : f64 = 0.4;
+        let drift = vola.powi(2) / 2.0;
+        let s0 = 100.0;
+        let nr_steps = 100;
+        let tte = 5.0;
+        let dt = tte / nr_steps as f64;
 
-        let stock_gbm = GeometricBrownianMotion::new(s0, r, vola, dt);
-        let mc_simulator = MonteCarloPathSimulator::new(10_000, nr_steps);
+        let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
+        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
         let paths = mc_simulator.simulate_paths(stock_gbm);
 
         let path_eval = PathEvaluator::new(&paths);
-        let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
-        assert_approx_eq!(avg_price.unwrap(), s0, TOLERANCE);
+
+        let avg_delta = path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p/s0).ln()) );
+        let exp_delta = 0.0; // tte * (drift - vola.powi(2) / 2.0);
+        assert_approx_eq!(avg_delta.unwrap(), exp_delta, TOLERANCE);
+
+        // let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
+        // assert_approx_eq!(avg_price.unwrap(), s0, TOLERANCE);
     }
 
     #[test]
