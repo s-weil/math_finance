@@ -1,7 +1,6 @@
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution};
 
-
 pub trait McDistIter {
     type Dist: Distribution<f64>;
 
@@ -99,6 +98,7 @@ impl<'a> PathEvaluator<'a> {
         Self { paths }
     }
 
+    // TODO: rename apply
     pub fn evaluate(&self, path_fn: impl Fn(&'a Path) -> Option<f64>) -> Vec<Option<f64>> {
         self.paths.iter().map(path_fn).collect()
     }
@@ -160,7 +160,7 @@ mod tests {
     fn normal_path_simulation() {
         let normal_gen = NormalPathGenerator;
 
-        let mc_simulator  = MonteCarloPathSimulator::new(100_000, 100);
+        let mc_simulator = MonteCarloPathSimulator::new(100_000, 100);
 
         let paths_slice: Vec<Vec<f64>> = mc_simulator
             .simulate_paths(normal_gen)
@@ -242,7 +242,6 @@ mod tests {
         assert_eq!(avg.unwrap(), (2.0 + 4.0) / 3.0);
     }
 
-
     use rand::{Rng, SeedableRng};
     use rand_hc::Hc128Rng;
 
@@ -250,27 +249,24 @@ mod tests {
         type Dist: Distribution<f64>;
 
         fn generator(&self, seed_nr: u64) -> Hc128Rng {
-            rand_hc
-            ::Hc128Rng
-            ::seed_from_u64(
-                seed_nr,
-            )
+            rand_hc::Hc128Rng::seed_from_u64(seed_nr)
         }
 
         fn distribution(&self) -> Self::Dist;
 
-        fn samples<'a>(
-            // &mut self,
-            &self,
-            generator: &'a mut Hc128Rng,
-            nr_samples: usize
-        ) -> Vec<f64>; // DistIter<Self::Dist, Hc128Rng, f64>;
+        fn samples<'a>(&self, generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
+            //Self::SampleType>  {
+            let dist = self.distribution();
+            generator.sample_iter(dist).take(nr_samples).collect()
+        }
 
         fn dist_iter<'a>(
-            // &mut self,
             &self,
             generator: &'a mut Hc128Rng,
-        ) -> DistIter<Self::Dist, &'a mut Hc128Rng, f64>;
+        ) -> DistIter<Self::Dist, &'a mut Hc128Rng, f64> {
+            //  Self::SampleType> {
+            generator.sample_iter(self.distribution())
+        }
     }
 
     pub struct NormalNumberSampler {
@@ -291,32 +287,35 @@ mod tests {
         }
     }
 
-
     impl McSampler for NormalNumberSampler {
         type Dist = Normal<f64>;
 
         fn distribution(&self) -> Self::Dist {
             Normal::new(self.mu, self.sigma).unwrap()
         }
+    }
 
-        fn samples<'a>(
-            // &mut self,
+    pub trait McPathSampler: McSampler {
+        type SampleType;
+
+        fn sample_path<'a>(
             &self,
             generator: &'a mut Hc128Rng,
-            nr_samples: usize
-        ) -> Vec<f64> {
-            // let dist = Normal::new(self.mu, self.sigma).unwrap();
-            let dist = self.distribution();
-            generator.sample_iter(dist).take(nr_samples).collect()
-        }
+            nr_steps: usize,
+        ) -> Vec<Self::SampleType>;
+    }
 
-        fn dist_iter<'a>(
-            // &mut self,
+    // TODO: do an implementatoin for MultivariateNormalNumberPathSampler
+
+    impl McPathSampler for NormalNumberSampler {
+        type SampleType = f64;
+
+        fn sample_path<'a>(
             &self,
             generator: &'a mut Hc128Rng,
-        ) -> DistIter<Self::Dist, &'a mut Hc128Rng, f64> {
-            // let dist = self.distribution();
-            generator.sample_iter(self.distribution())
+            nr_steps: usize,
+        ) -> Vec<Self::SampleType> {
+            self.samples(generator, nr_steps)
         }
     }
 
@@ -330,15 +329,13 @@ mod tests {
         let mut generator = normal_sampler.generator(41);
 
         for _ in 0..nr_paths {
-            // TODO: try to pass it as ref
-            // maybe parallelize if it's a hotpath
             // let path = normal_sampler.samples(&mut generator, nr_steps);
             let distr = normal_sampler.dist_iter(&mut generator);
-            let path : Vec<f64> = distr.take(nr_steps).collect();
+            let path: Vec<f64> = distr.take(nr_steps).collect();
             // let path = generator.sample_path(self.nr_steps, distr);
             paths.push(path);
         }
-        assert_eq!(paths.len(), nr_paths);        
+        assert_eq!(paths.len(), nr_paths);
     }
 
     #[test]
@@ -351,22 +348,63 @@ mod tests {
         let mut generator = normal_sampler.generator(41);
 
         for _ in 0..nr_paths {
-            // TODO: try to pass it as ref
-            // maybe parallelize if it's a hotpath
             let distr = normal_sampler.dist_iter(&mut generator);
-            let path : f64 = distr.take(nr_steps).fold(0.0, |acc, z| acc + z);
+            let path: f64 = distr.take(nr_steps).fold(0.0, |acc, z| acc + z);
             // let path = generator.sample_path(self.nr_steps, distr);
             paths.push(vec![path]);
         }
-        assert_eq!(paths.len(), nr_paths);   
-        
+        assert_eq!(paths.len(), nr_paths);
+
         let path_eval = PathEvaluator::new(&paths);
         let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
 
         assert_approx_eq!(0.5 * 100.0, avg_price.unwrap(), TOLERANCE);
     }
 
-    // TODO: should also consider to return and store the random paths (without gbm or so yet), 
+    // TODO: should also consider to return and store the random paths (without gbm or so yet),
     // and only then apply further functions like gbm
     // this way greeks can be calculated with the same randoms, for which the creation is the hot path
+    // would it also work for basket? -> would have to store vec<vec<f64>>
+
+    pub struct MonteCarloPathSampler {
+        pub nr_paths: usize,
+        pub nr_steps: usize,
+    }
+
+    impl MonteCarloPathSampler {
+        pub fn new(nr_paths: usize, nr_steps: usize) -> Self {
+            Self { nr_paths, nr_steps }
+        }
+
+        pub fn simulate_paths(&self, sampler: impl McSampler) -> Vec<Vec<f64>> {
+            let mut paths = Vec::with_capacity(self.nr_paths);
+            let mut rng = rand::thread_rng();
+
+            for _ in 0..self.nr_paths {
+                // TODO: try to pass it as ref
+                // maybe parallelize if it's a hotpath
+                let distr = generator.distribution(&mut rng);
+                let path = generator.sample_path(self.nr_steps, distr);
+                paths.push(path);
+            }
+            paths
+        }
+
+        pub fn simulate_paths_with(
+            &self,
+            generator: impl PathGenerator,
+            path_fn: impl Fn(Path) -> Option<f64>,
+        ) -> Vec<Option<f64>> {
+            let mut paths = Vec::with_capacity(self.nr_paths);
+            let mut rng = rand::thread_rng();
+
+            for _ in 0..self.nr_paths {
+                let distr = generator.distribution(&mut rng);
+                let path = generator.sample_path(self.nr_steps, distr);
+                let v = path_fn(path);
+                paths.push(v);
+            }
+            paths
+        }
+    }
 }
