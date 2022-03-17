@@ -71,6 +71,38 @@ impl GeometricBrownianMotion {
 
         path
     }
+
+    
+    pub fn sample_path2(
+        &self,
+        random_normals: &[f64],
+    ) -> Vec<f64> {
+        let mut path = Vec::with_capacity(random_normals.len() + 1);
+
+        let mut curr_p = self.initial_value;
+        path.push(curr_p);
+
+        for z in random_normals {
+            curr_p = self.sample(curr_p, *z);
+            path.push(curr_p);
+        }
+
+        path
+    }
+
+    // pub fn sample_path3<'a>(
+    //     &self,
+    //     random_normals: &'a mut [f64],
+    // ) -> &'a [f64] {
+    //     let mut curr_p = self.initial_value;
+
+    //     for &mut z in random_normals {
+    //         curr_p = self.sample(curr_p, z);
+    //         z = curr_p;
+    //     }
+
+    //     random_normals
+    // }
 }
 
 impl McDistIter for GeometricBrownianMotion {
@@ -93,6 +125,7 @@ impl PathGenerator for GeometricBrownianMotion {
         self.sample_path(self.initial_value, nr_steps, dist_iter)
     }
 }
+
 
 // impl SampleGenerator for GeometricBrownianMotion {
 //     type Dist = Normal<f64>;
