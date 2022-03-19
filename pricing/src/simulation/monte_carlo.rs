@@ -241,5 +241,4 @@ mod tests {
         let avg = path_eval.evaluate_average(|path| path.last().cloned());
         assert_eq!(avg.unwrap(), (2.0 + 4.0) / 3.0);
     }
-
 }

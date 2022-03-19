@@ -1,13 +1,10 @@
 // use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution, Normal};
 
-
 use rand::{Rng, SeedableRng};
 use rand_hc::Hc128Rng;
 
-
-
-pub trait DistributionExt : Distribution<f64> + Sized {
+pub trait DistributionExt: Distribution<f64> + Sized {
     fn generator(&self, seed_nr: u64) -> Hc128Rng {
         rand_hc::Hc128Rng::seed_from_u64(seed_nr)
     }
@@ -16,10 +13,7 @@ pub trait DistributionExt : Distribution<f64> + Sized {
         generator.sample_iter(self).take(nr_samples).collect()
     }
 
-    fn dist_iter<'a>(
-        self,
-        generator: &'a mut Hc128Rng,
-    ) -> DistIter<Self, &'a mut Hc128Rng, f64> {
+    fn dist_iter<'a>(self, generator: &'a mut Hc128Rng) -> DistIter<Self, &'a mut Hc128Rng, f64> {
         generator.sample_iter(self)
     }
 }
@@ -84,17 +78,14 @@ impl DistributionExt for Normal<f64> {}
 //     }
 // }
 
-pub trait McPathSampler { // Do not "inherit" from DistributionExt to leave more flexibility
-    type Dist : DistributionExt;
+pub trait McPathSampler {
+    // Do not "inherit" from DistributionExt to leave more flexibility
+    type Dist: DistributionExt;
     // type SampleType;
 
     fn distribution(&self) -> Self::Dist;
 
-    fn sample_path<'a>(
-        &self,
-        generator: &'a mut Hc128Rng,
-        nr_steps: usize,
-    ) -> Vec<f64>;
+    fn sample_path<'a>(&self, generator: &'a mut Hc128Rng, nr_steps: usize) -> Vec<f64>;
 }
 
 // TODO: do an implementatoin for MultivariateNormalNumberPathSampler
@@ -106,15 +97,10 @@ impl McPathSampler for Normal<f64> {
         *self
     }
 
-    fn sample_path<'a>(
-        &self,
-        generator: &'a mut Hc128Rng,
-        nr_steps: usize,
-    ) -> Vec<f64> {
+    fn sample_path<'a>(&self, generator: &'a mut Hc128Rng, nr_steps: usize) -> Vec<f64> {
         self.samples(generator, nr_steps)
     }
 }
-
 
 // pub trait McDistIter {
 //     type Dist: Distribution<f64>;
@@ -174,7 +160,7 @@ impl MonteCarloPathSimulator {
         let mut generator = sampler.distribution().generator(53);
 
         for _ in 0..self.nr_paths {
-            let path = sampler.sample_path(&mut generator , self.nr_steps);
+            let path = sampler.sample_path(&mut generator, self.nr_steps);
             paths.push(path);
         }
         paths
@@ -189,9 +175,25 @@ impl MonteCarloPathSimulator {
         let mut generator = sampler.distribution().generator(53);
 
         for _ in 0..self.nr_paths {
-            let path = sampler.sample_path(&mut generator , self.nr_steps);
+            let path = sampler.sample_path(&mut generator, self.nr_steps);
             let v = path_fn(&path);
             paths.push(v);
+        }
+        paths
+    }
+
+    pub fn simulate_paths_with2(
+        &self,
+        sampler: impl McPathSampler,
+        apply_fn: impl Fn(&mut PathSlice),
+    ) -> Vec<Vec<f64>> {
+        let mut paths = Vec::with_capacity(self.nr_paths);
+        let mut generator = sampler.distribution().generator(53);
+
+        for _ in 0..self.nr_paths {
+            let mut path = sampler.sample_path(&mut generator, self.nr_steps);
+            apply_fn(&mut path);
+            paths.push(path);
         }
         paths
     }
@@ -244,9 +246,6 @@ mod tests {
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     const TOLERANCE: f64 = 1e-1;
 
-
-
-
     #[test]
     fn stock_price_simulation() {
         let nr_paths = 100_000;
@@ -260,9 +259,39 @@ mod tests {
 
         let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
         let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
-        let normal = Normal::new(0.0, 1.0).unwrap();
-        
-        let paths = mc_simulator.simulate_paths_with(normal, |random_normals| stock_gbm.sample_path2(random_normals));
+
+        let paths = mc_simulator
+            .simulate_paths_with(stock_gbm.base_distribution(), |random_normals| {
+                stock_gbm.sample_path2(random_normals)
+            });
+        assert_eq!(paths.len(), nr_paths);
+
+        // expected value should equal analytic solution
+        let path_eval = PathEvaluator::new(&paths);
+        let avg_delta =
+            path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p / s0).ln()));
+        let exp_delta = tte * (drift - vola.powi(2) / 2.0);
+        assert_approx_eq!(avg_delta.unwrap(), exp_delta, TOLERANCE);
+    }
+
+    #[test]
+    fn stock_price_simulation2() {
+        let nr_paths = 100_000;
+        let nr_steps = 100;
+        let drift = -0.2;
+        let vola = 0.4;
+        let s0 = 100.0;
+        let nr_steps = 100;
+        let tte = 5.0;
+        let dt = tte / nr_steps as f64;
+
+        let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
+        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+
+        let paths = mc_simulator
+            .simulate_paths_with2(stock_gbm.base_distribution(), |random_normals| {
+                stock_gbm.sample_path3(random_normals)
+            });
         assert_eq!(paths.len(), nr_paths);
 
         // expected value should equal analytic solution
@@ -312,23 +341,6 @@ mod tests {
         let avg = path_eval.evaluate_average(|path| path.last().cloned());
         assert_eq!(avg.unwrap(), (2.0 + 4.0) / 3.0);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     // #[test]
     // fn normal_sampled_paths() {
@@ -391,7 +403,7 @@ mod tests {
     //     pub fn simulate_paths(&self, sampler: impl DistributionExt) -> Vec<Vec<f64>> {
     //         let mut paths = Vec::with_capacity(self.nr_paths);
     //         let mut rng = rand::thread_rng();
-            
+
     //         let mut generator = sampler.generator(41);
 
     //         for _ in 0..self.nr_paths {
@@ -422,7 +434,6 @@ mod tests {
     //     }
     // }
 
-    
     // use rand::{Rng, SeedableRng};
     // use rand_hc::Hc128Rng;
 
@@ -588,7 +599,7 @@ mod tests {
     //     pub fn simulate_paths(&self, sampler: impl DistributionExt) -> Vec<Vec<f64>> {
     //         let mut paths = Vec::with_capacity(self.nr_paths);
     //         let mut rng = rand::thread_rng();
-            
+
     //         let mut generator = sampler.generator(41);
 
     //         for _ in 0..self.nr_paths {

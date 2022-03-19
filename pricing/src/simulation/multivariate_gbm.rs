@@ -7,6 +7,7 @@ use rand_distr::{DistIter, Distribution, Normal};
 use ndarray::prelude::*;
 // use ndarray_linalg::cholesky::*;
 use ndarray::arr1;
+use rand_hc::Hc128Rng;
 
 use crate::simulation::monte_carlo::McDistIter;
 use crate::simulation::PathGenerator;
@@ -43,6 +44,10 @@ impl MultivariateGeometricBrownianMotion {
             cholesky_factor,
             dt,
         }
+    }
+
+    fn dim(&self) -> usize {
+        self.initial_values.shape()[0]
     }
 
     /// See https://en.wikipedia.org/wiki/Geometric_Brownian_motion
@@ -110,6 +115,21 @@ impl PathGenerator for MultivariateGeometricBrownianMotion {
         paths
     }
 }
+
+// TOOD: sollte eher multivariate normal distribution struct definineiren
+// und das dann für dieses implementieren
+// impl crate::simulation::monte_carlo2::McPathSampler for MultivariateGeometricBrownianMotion {
+//     type Dist = Normal<f64>;
+
+//     fn distribution(&self) -> Self::Dist {
+//         Normal::new(0.0, 1.0).unwrap()
+//     }
+
+//     fn sample_path<'a>(&self, generator: &'a mut Hc128Rng, nr_steps: usize) -> Vec<f64> {
+//         Self::Dist.sample_path(generator, nr_steps * self.dim())
+//     }
+
+// }
 
 #[cfg(test)]
 mod tests {
