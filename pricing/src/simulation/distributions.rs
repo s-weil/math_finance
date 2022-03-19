@@ -105,12 +105,12 @@ impl MultivariateNormalDistribution {
 impl Distribution<Array1<f64>> for MultivariateNormalDistribution {
     #[inline]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Array1<f64> {
-        // let standard_normals: Vec<f64> = rng.sample_iter(StandardNormal).take(self.dim()).collect();
+        let standard_normals: Vec<f64> = rng.sample_iter(StandardNormal).take(self.dim()).collect();
 
-        let mut standard_normals = Vec::with_capacity(self.dim());
-        for _ in 0..self.dim() {
-            standard_normals.push(rng.sample(StandardNormal))
-        }
+        // let mut standard_normals = Vec::with_capacity(self.dim());
+        // for _ in 0..self.dim() {
+        //     standard_normals.push(rng.sample(StandardNormal))
+        // }
 
         self.transform_sample(&Array1::from(standard_normals))
     }
@@ -181,7 +181,7 @@ mod tests {
     use rand::SeedableRng;
 
     #[test]
-    fn standard_normals() {
+    fn standard_normal_path() {
         let mut rn_generator = rand_hc::Hc128Rng::seed_from_u64(13241113);
         let samples = StandardNormal.sample_path(&mut rn_generator, 100_000);
 

@@ -13,7 +13,11 @@ use rand_distr::StandardNormal;
 //     config = Criterion::default().measurement_time(std::time::Duration::from_secs(100));
 //     target = criterion_stock_price_simulation;
 // }
-criterion_group!(benches, criterion_stock_price_simulation);
+criterion_group!(
+    benches,
+    // criterion_stock_price_simulation,
+    criterion_basket_stock_price_simulation
+);
 criterion_main!(benches);
 
 pub fn criterion_stock_price_simulation(c: &mut Criterion) {
@@ -82,5 +86,41 @@ fn simulate_paths_with_path_generator_gbm((nr_paths, nr_steps): (usize, usize)) 
 
     let path_eval = PathEvaluator::new(&paths);
     let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
+    assert!(avg_price.is_some());
+}
+
+use ndarray::{arr1, arr2};
+use pricing::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
+
+pub fn criterion_basket_stock_price_simulation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Basket stock price Monte Carlo simulation");
+
+    group.bench_function("direct multivariate gbm sampler", |b| {
+        b.iter(|| basket_stock_price_simulation(black_box((10_000, 100))))
+    });
+
+    group.finish()
+}
+
+fn basket_stock_price_simulation((nr_paths, nr_steps): (usize, usize)) {
+    let initial_values = arr1(&[110.0, 120.0, 130.0]);
+    let drifts = arr1(&[0.1, 0.2, 0.3]);
+    let cholesky_factor = arr2(&[[1.0, 0.05, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
+    let dt = 1.0;
+
+    let mv_gbm =
+        MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
+
+    let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+    let paths = mc_simulator.simulate_paths(42, mv_gbm);
+    assert_eq!(paths.len(), nr_paths);
+
+    let path_eval = PathEvaluator::new(&paths);
+
+    let avg_price = path_eval.evaluate_average(|path| {
+        path.last()
+            .cloned()
+            .map(|p| p.iter().fold(0.0, |acc, x| acc + x))
+    });
     assert!(avg_price.is_some());
 }
