@@ -1,4 +1,5 @@
 pub mod basket_option;
+pub mod distributions;
 pub mod european_option;
 pub mod european_option2;
 pub mod gbm;

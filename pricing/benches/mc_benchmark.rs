@@ -5,9 +5,7 @@ extern crate pricing;
 use pricing::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
 use pricing::simulation::GeometricBrownianMotion;
 
-use pricing::simulation::monte_carlo2::{
-    DistributionExt, McPathSampler, MonteCarloPathSimulator as mcps,
-};
+use pricing::simulation::monte_carlo2::{MonteCarloPathSimulator as mcps, PathSampler};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rand_distr::Normal;
@@ -77,11 +75,11 @@ fn simulate_paths_with_path_generator_new((nr_paths, nr_steps): (usize, usize)) 
 
     let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
     let mc_simulator = mcps::new(nr_paths, nr_steps);
-    let normal: Normal<f64> = Normal::new(0.0, 1.0).unwrap();
 
-    let paths = mc_simulator.simulate_paths_with(normal, |random_normals| {
-        stock_gbm.sample_path2(random_normals)
-    });
+    let paths =
+        mc_simulator.simulate_paths_with(42, rand_distr::StandardNormal, |random_normals| {
+            stock_gbm.sample_path2(random_normals)
+        });
 
     let path_eval = PathEvaluator::new(&paths);
     let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
@@ -97,8 +95,8 @@ fn simulate_paths_with_path_generator_new2((nr_paths, nr_steps): (usize, usize))
     let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
     let mc_simulator = mcps::new(nr_paths, nr_steps);
 
-    let paths = mc_simulator
-        .simulate_paths_with2(stock_gbm.base_distribution(), |random_normals| {
+    let paths =
+        mc_simulator.simulate_paths_with2(42, rand_distr::StandardNormal, |random_normals| {
             stock_gbm.sample_path3(random_normals)
         });
 
