@@ -1,68 +1,57 @@
-use rand::{self, prelude::ThreadRng};
-use rand_distr::{DistIter, Distribution};
+use rand::{Rng, SeedableRng};
+use rand_distr::Distribution;
+use rand_hc::Hc128Rng;
+use std::marker::PhantomData;
 
-pub trait McDistIter {
-    type Dist: Distribution<f64>;
-
-    fn distribution<'a>(
-        &self,
-        rng: &'a mut ThreadRng,
-    ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64>;
-}
-
-pub trait PathGenerator: McDistIter {
-    fn sample_path(
-        &self,
-        nr_steps: usize,
-        dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
-    ) -> Vec<f64>;
-}
-
-pub trait SampleGenerator: McDistIter {
-    fn sample(&self, current: f64, random_nr: f64) -> f64;
-}
-
-// pub struct MonteCarloSamples {
-//     nr_samples: usize
-// }
-
-// impl MonteCarloSamples {
-//     pub fn new(nr_samples: usize) -> Self {
-//         Self { nr_samples }
-//     }
-
-//     pub fn simulate(&self, generator: impl SampleGenerator, initial_value: f64) -> Vec<f64> {
-//         let mut rng = rand::thread_rng();
-//         let mut simulations = vec![];
-
-//         for rnd_nr in generator.distribution().sample_iter(rng).choose_multiple(&mut rng, self.nr_samples) {
-//             let res = generator.sample(initial_value, rnd_nr);
-//             simulations.push(res);
-//         }
-
-//         simulations
-//     }
-// }
-
-pub struct MonteCarloPathSimulator {
-    pub nr_paths: usize,
-    pub nr_steps: usize,
-}
-
-impl MonteCarloPathSimulator {
-    pub fn new(nr_paths: usize, nr_steps: usize) -> Self {
-        Self { nr_paths, nr_steps }
+/// Inherits from the 'generating distribution'.
+pub trait PathSampler<SampleType>: Distribution<SampleType> + Sized {
+    fn rn_generator(&self, seed_nr: u64) -> Hc128Rng {
+        rand_hc::Hc128Rng::seed_from_u64(seed_nr)
     }
 
-    pub fn simulate_paths(&self, generator: impl PathGenerator) -> Vec<Vec<f64>> {
+    #[inline]
+    fn sample_path<'a>(
+        &self,
+        rn_generator: &'a mut Hc128Rng,
+        nr_samples: usize,
+    ) -> Vec<SampleType> {
+        // unoptimized but generic implementation
+        rn_generator.sample_iter(self).take(nr_samples).collect()
+
+        // let mut samples_vec = Vec::with_capacity(nr_samples);
+        // for _ in 0..nr_samples {
+        //     samples_vec.push(self.sample(rn_generator));
+        // }
+        // samples_vec
+    }
+}
+
+#[derive(Debug)]
+pub struct MonteCarloPathSimulator<SampleType> {
+    pub nr_paths: usize,
+    pub nr_steps: usize,
+    _phantom: PhantomData<SampleType>,
+}
+
+impl<SampleType> MonteCarloPathSimulator<SampleType> {
+    pub fn new(nr_paths: usize, nr_steps: usize) -> Self {
+        Self {
+            nr_paths,
+            nr_steps,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn simulate_paths(
+        &self,
+        seed_nr: u64,
+        sampler: impl PathSampler<SampleType>,
+    ) -> Vec<Vec<SampleType>> {
         let mut paths = Vec::with_capacity(self.nr_paths);
-        let mut rng = rand::thread_rng();
+        let mut generator = sampler.rn_generator(seed_nr);
 
         for _ in 0..self.nr_paths {
-            // TODO: try to pass it as ref
-            // maybe parallelize if it's a hotpath
-            let distr = generator.distribution(&mut rng);
-            let path = generator.sample_path(self.nr_steps, distr);
+            let path = sampler.sample_path(&mut generator, self.nr_steps);
             paths.push(path);
         }
         paths
@@ -70,40 +59,81 @@ impl MonteCarloPathSimulator {
 
     pub fn simulate_paths_with(
         &self,
-        generator: impl PathGenerator,
-        path_fn: impl Fn(Path) -> Option<f64>,
-    ) -> Vec<Option<f64>> {
+        seed_nr: u64,
+        sampler: impl PathSampler<SampleType>,
+        path_fn: impl Fn(&PathSlice<SampleType>) -> Path<SampleType>,
+    ) -> Vec<Vec<SampleType>> {
         let mut paths = Vec::with_capacity(self.nr_paths);
-        let mut rng = rand::thread_rng();
+        let mut generator = sampler.rn_generator(seed_nr);
 
         for _ in 0..self.nr_paths {
-            let distr = generator.distribution(&mut rng);
-            let path = generator.sample_path(self.nr_steps, distr);
-            let v = path_fn(path);
+            let path = sampler.sample_path(&mut generator, self.nr_steps);
+            let v = path_fn(&path);
             paths.push(v);
         }
         paths
     }
+
+    pub fn simulate_paths_apply_in_place(
+        &self,
+        seed_nr: u64,
+        sampler: impl PathSampler<SampleType>,
+        apply_in_place_fn: impl Fn(&mut PathSlice<SampleType>),
+    ) -> Vec<Vec<SampleType>> {
+        let mut paths = Vec::with_capacity(self.nr_paths);
+        let mut generator = sampler.rn_generator(seed_nr);
+
+        for _ in 0..self.nr_paths {
+            let mut path = sampler.sample_path(&mut generator, self.nr_steps);
+            apply_in_place_fn(&mut path);
+            paths.push(path);
+        }
+        paths
+    }
+
+    //TODO: add a version which doesnt store paths
+    // pub fn simulate_paths_with(
+    //     &self,
+    //     generator: impl PathGenerator,
+    //     path_fn: impl Fn(Path) -> Option<f64>,
+    // ) -> Vec<Option<f64>> {
+    //     let mut paths = Vec::with_capacity(self.nr_paths);
+    //     let mut rng = rand::thread_rng();
+
+    //     for _ in 0..self.nr_paths {
+    //         let distr = generator.distribution(&mut rng);
+    //         let path = generator.sample_path(self.nr_steps, distr);
+    //         let v = path_fn(path);
+    //         paths.push(v);
+    //     }
+    //     paths
+    // }
 }
 
-pub type Path = Vec<f64>;
-pub type PathSlice = [f64];
+pub type Path<SampleType> = Vec<SampleType>;
+pub type PathSlice<SampleType> = [SampleType];
 
-pub struct PathEvaluator<'a> {
-    paths: &'a [Path],
+pub struct PathEvaluator<'a, SampleType> {
+    paths: &'a [Path<SampleType>],
 }
 
-impl<'a> PathEvaluator<'a> {
-    pub fn new(paths: &'a [Path]) -> Self {
+impl<'a, SampleType> PathEvaluator<'a, SampleType> {
+    pub fn new(paths: &'a [Path<SampleType>]) -> Self {
         Self { paths }
     }
 
     // TODO: rename apply
-    pub fn evaluate(&self, path_fn: impl Fn(&'a Path) -> Option<f64>) -> Vec<Option<f64>> {
+    pub fn evaluate(
+        &self,
+        path_fn: impl Fn(&'a Path<SampleType>) -> Option<f64>,
+    ) -> Vec<Option<f64>> {
         self.paths.iter().map(path_fn).collect()
     }
 
-    pub fn evaluate_average(&self, path_fn: impl Fn(&'a Path) -> Option<f64>) -> Option<f64> {
+    pub fn evaluate_average(
+        &self,
+        path_fn: impl Fn(&'a Path<SampleType>) -> Option<f64>,
+    ) -> Option<f64> {
         if self.paths.is_empty() {
             return None;
         }
@@ -126,44 +156,20 @@ mod tests {
 
     use super::*;
     use crate::simulation::gbm::GeometricBrownianMotion;
-    use rand_distr::{DistIter, Distribution, Normal};
+    use rand_distr::{Normal, StandardNormal};
 
     use assert_approx_eq::assert_approx_eq;
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     const TOLERANCE: f64 = 1e-1;
 
-    pub struct NormalPathGenerator;
-
-    impl McDistIter for NormalPathGenerator {
-        type Dist = Normal<f64>;
-
-        fn distribution<'a>(
-            &self,
-            rng: &'a mut ThreadRng,
-        ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-            Normal::new(0.5, 1.0).unwrap().sample_iter(rng)
-        }
-    }
-
-    impl PathGenerator for NormalPathGenerator {
-        fn sample_path(
-            &self,
-            nr_steps: usize,
-            dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
-        ) -> Vec<f64> {
-            dist_iter.take(nr_steps).collect()
-        }
-    }
-
     #[test]
     fn normal_path_simulation() {
-        let normal_gen = NormalPathGenerator;
-
+        let sampler = Normal::new(0.5, 1.0).unwrap();
         let mc_simulator = MonteCarloPathSimulator::new(100_000, 100);
 
         let paths_slice: Vec<Vec<f64>> = mc_simulator
-            .simulate_paths(normal_gen)
+            .simulate_paths(42, sampler)
             .iter()
             .map(|path| vec![path.iter().fold(0.0, |acc, z| acc + z)])
             .collect();
@@ -179,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn stock_price_simulation() {
+    fn stock_price_simulation_path_fn() {
         let nr_paths = 100_000;
         let nr_steps = 100;
         let drift = -0.2;
@@ -191,7 +197,10 @@ mod tests {
 
         let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
         let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
-        let paths = mc_simulator.simulate_paths(stock_gbm);
+
+        let paths = mc_simulator.simulate_paths_with(42, StandardNormal, |standard_normals| {
+            stock_gbm.generate_path(standard_normals)
+        });
         assert_eq!(paths.len(), nr_paths);
 
         // expected value should equal analytic solution
@@ -215,17 +224,14 @@ mod tests {
 
         let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
         let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
-        let paths = mc_simulator.simulate_paths(stock_gbm);
+        let paths = mc_simulator.simulate_paths(42, stock_gbm);
 
         let path_eval = PathEvaluator::new(&paths);
 
         let avg_delta =
             path_eval.evaluate_average(|path| path.last().cloned().map(|p| (p / s0).ln()));
-        let exp_delta = 0.0; // tte * (drift - vola.powi(2) / 2.0);
+        let exp_delta = tte * (drift - vola.powi(2) / 2.0);
         assert_approx_eq!(avg_delta.unwrap(), exp_delta, TOLERANCE);
-
-        // let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
-        // assert_approx_eq!(avg_price.unwrap(), s0, TOLERANCE);
     }
 
     #[test]

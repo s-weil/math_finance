@@ -1,15 +1,13 @@
-// https://medium.com/analytics-vidhya/monte-carlo-simulations-for-predicting-stock-prices-python-a64f53585662
+use rand::Rng;
+use rand_distr::{Distribution, StandardNormal};
+use rand_hc::Hc128Rng;
 
-use crate::simulation::PathGenerator;
-use rand::{self, prelude::ThreadRng};
-use rand_distr::{DistIter, Distribution, Normal};
-
-use super::monte_carlo::McDistIter;
+use crate::simulation::monte_carlo::PathSampler;
 
 /// Model params for the SDE
 /// '''math
 /// dS_t / S_t = mu dt + sigma dW_t
-/// ''', where '$dW_t ~ N(0, sqrt(dt))$'
+/// ''', where $dW_t ~ N(0, sqrt(dt))$
 /// https://en.wikipedia.org/wiki/Geometric_Brownian_motion
 pub struct GeometricBrownianMotion {
     initial_value: f64,
@@ -31,16 +29,21 @@ impl GeometricBrownianMotion {
         }
     }
 
-    pub fn base_distribution(&self) -> Normal<f64> {
-        Normal::new(0.0, 1.0).unwrap()
+    pub fn base_distribution(&self) -> StandardNormal {
+        StandardNormal
     }
 
     /// See https://en.wikipedia.org/wiki/Geometric_Brownian_motion
-    pub fn sample(&self, st: f64, z: f64) -> f64 {
+    pub fn step(&self, st: f64, z: f64) -> f64 {
         // let ret = self.dt * (self.mu - self.sigma.powi(2) / 2.0) + self.dt.sqrt() * self.sigma * z;
         // St * ret.exp()
         let d_st = st * (self.mu * self.dt + self.sigma * self.dt.sqrt() * z);
         st + d_st // d_St = S_t+1 - St
+    }
+
+    pub fn step_analytic(&self, st: f64, z: f64) -> f64 {
+        let ret = self.dt * (self.mu - self.sigma.powi(2) / 2.0) + self.dt.sqrt() * self.sigma * z;
+        st * ret.exp()
     }
 
     /*/
@@ -57,87 +60,47 @@ impl GeometricBrownianMotion {
     }
     */
 
-    pub fn sample_path(
-        &self,
-        price: f64,
-        nr_steps: usize,
-        normal_distr: DistIter<Normal<f64>, &mut ThreadRng, f64>,
-    ) -> Vec<f64> {
-        let mut path = Vec::with_capacity(nr_steps + 1);
+    pub fn generate_path(&self, standard_normals: &[f64]) -> Vec<f64> {
+        let mut path = Vec::with_capacity(standard_normals.len() + 1);
 
-        let mut curr_p = price;
+        let mut curr_p = self.initial_value;
         path.push(curr_p);
 
-        for z in normal_distr.take(nr_steps) {
-            curr_p = self.sample(curr_p, z);
+        for z in standard_normals {
+            curr_p = self.step(curr_p, *z);
             path.push(curr_p);
         }
 
         path
     }
 
-    pub fn sample_path2(&self, random_normals: &[f64]) -> Vec<f64> {
-        let mut path = Vec::with_capacity(random_normals.len() + 1);
-
-        let mut curr_p = self.initial_value;
-        path.push(curr_p);
-
-        for z in random_normals {
-            curr_p = self.sample(curr_p, *z);
-            path.push(curr_p);
-        }
-
-        path
-    }
-
-    pub fn sample_path3(&self, random_normals: &mut [f64]) {
+    pub fn generate_in_place(&self, standard_normals: &mut [f64]) {
         let mut curr_p = self.initial_value;
 
-        for z in random_normals.iter_mut() {
-            curr_p = self.sample(curr_p, *z);
+        for z in standard_normals.iter_mut() {
+            curr_p = self.step(curr_p, *z);
             *z = curr_p;
         }
     }
 }
 
-impl McDistIter for GeometricBrownianMotion {
-    type Dist = Normal<f64>;
-
-    fn distribution<'a>(
-        &self,
-        rng: &'a mut ThreadRng,
-    ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-        Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
+impl Distribution<f64> for GeometricBrownianMotion {
+    #[inline]
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
+        // TODO: be careful of initial value!
+        self.step_analytic(self.initial_value, rng.sample(StandardNormal))
     }
 }
 
-impl PathGenerator for GeometricBrownianMotion {
-    fn sample_path(
-        &self,
-        nr_steps: usize,
-        dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
-    ) -> Vec<f64> {
-        self.sample_path(self.initial_value, nr_steps, dist_iter)
+impl PathSampler<f64> for GeometricBrownianMotion {
+    // #[inline]
+    fn sample_path<'a>(&self, rn_generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
+        let mut standard_normals: Vec<f64> = rn_generator
+            .sample_iter(StandardNormal)
+            .take(nr_samples)
+            .collect();
+
+        self.generate_in_place(&mut standard_normals);
+        standard_normals
     }
 }
-
-// impl SampleGenerator for GeometricBrownianMotion {
-//     type Dist = Normal<f64>;
-
-//     fn sample_value(
-//         &self,
-//         price: f64,
-//         // dist_iter: impl Iterator<Item = f64>,
-//         nr_steps: usize,
-//         dist_iter: &DistIter<Self::Dist, &mut ThreadRng, f64>,
-//     ) -> f64 {
-//         self.sample_value(price, nr_steps, dist_iter)
-//     }
-
-//     fn distribution<'a>(
-//         &self,
-//         rng: &'a mut ThreadRng,
-//     ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-//         Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
-//     }
-// }

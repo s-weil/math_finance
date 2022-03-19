@@ -2,15 +2,12 @@ use rand::prelude::IteratorRandom;
 use rand::{self, prelude::ThreadRng};
 use rand_distr::{DistIter, Distribution, Normal};
 
-// use nalgebra::point;
-// use nalgebra::ma;
 use ndarray::prelude::*;
 // use ndarray_linalg::cholesky::*;
 use ndarray::arr1;
 use rand_hc::Hc128Rng;
 
-use crate::simulation::monte_carlo::McDistIter;
-use crate::simulation::PathGenerator;
+use crate::simulation::distributions::MultivariateNormalDistribution;
 
 pub struct MultivariateGeometricBrownianMotion {
     initial_values: Array1<f64>,
@@ -90,31 +87,20 @@ impl MultivariateGeometricBrownianMotion {
     }
 }
 
-impl McDistIter for MultivariateGeometricBrownianMotion {
-    type Dist = Normal<f64>;
-
-    fn distribution<'a>(
-        &self,
-        rng: &'a mut ThreadRng,
-    ) -> DistIter<Self::Dist, &'a mut ThreadRng, f64> {
-        Normal::new(0.0, 1.0).unwrap().sample_iter(rng)
-    }
-}
-
-impl PathGenerator for MultivariateGeometricBrownianMotion {
-    fn sample_path(
-        &self,
-        nr_steps: usize,
-        dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
-    ) -> Vec<f64> {
-        let paths = self
-            .sample_path(&self.initial_values, nr_steps, dist_iter)
-            .iter()
-            .map(|multi| multi.iter().fold(0.0, |acc, x| acc + x) / multi.len() as f64)
-            .collect();
-        paths
-    }
-}
+// impl PathGenerator for MultivariateGeometricBrownianMotion {
+//     fn sample_path(
+//         &self,
+//         nr_steps: usize,
+//         dist_iter: DistIter<Self::Dist, &mut ThreadRng, f64>,
+//     ) -> Vec<f64> {
+//         let paths = self
+//             .sample_path(&self.initial_values, nr_steps, dist_iter)
+//             .iter()
+//             .map(|multi| multi.iter().fold(0.0, |acc, x| acc + x) / multi.len() as f64)
+//             .collect();
+//         paths
+//     }
+// }
 
 // TOOD: sollte eher multivariate normal distribution struct definineiren
 // und das dann für dieses implementieren

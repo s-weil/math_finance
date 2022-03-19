@@ -1,23 +1,9 @@
-use rand::{prelude::ThreadRng, Rng, SeedableRng};
-use rand_distr::{DistIter, Distribution, Normal, StandardNormal};
+use rand::Rng;
+use rand_distr::{Distribution, Normal, StandardNormal};
 use rand_hc::Hc128Rng;
 
-use crate::simulation::monte_carlo2::PathSampler;
+use crate::simulation::monte_carlo::PathSampler;
 use ndarray::{Array1, Array2};
-
-// pub trait DistributionExt: Distribution<f64> + Sized {
-//     fn generator(&self, seed_nr: u64) -> Hc128Rng {
-//         rand_hc::Hc128Rng::seed_from_u64(seed_nr)
-//     }
-
-//     fn samples<'a>(self, generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
-//         generator.sample_iter(self).take(nr_samples).collect()
-//     }
-
-//     fn dist_iter<'a>(self, generator: &'a mut Hc128Rng) -> DistIter<Self, &'a mut Hc128Rng, f64> {
-//         generator.sample_iter(self)
-//     }
-// }
 
 // impl DistributionExt for Normal<f64> {}
 
@@ -192,6 +178,19 @@ impl PathSampler<Array1<f64>> for MultivariateNormalDistribution {
 mod tests {
     use super::*;
     use ndarray::{arr1, arr2};
+    use rand::SeedableRng;
+
+    #[test]
+    fn standard_normals() {
+        let mut rn_generator = rand_hc::Hc128Rng::seed_from_u64(13241113);
+        let samples = StandardNormal.sample_path(&mut rn_generator, 100_000);
+
+        let mu = samples.iter().fold(0.0, |acc, z| acc + z) / 100_000.0;
+        assert_eq!(mu, -0.004556843413074714);
+
+        let variance = samples.iter().fold(0.0, |acc, z| acc + (z - mu).powi(2)) / 100_000.0;
+        assert_eq!(variance, 0.9965887881497351);
+    }
 
     #[test]
     fn sample() {

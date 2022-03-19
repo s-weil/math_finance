@@ -17,3 +17,8 @@ benches
 https://raw.githubusercontent.com/xcycharles/derivatives/master/hw3%20monte%20carlo.py
 
 todo: perf improvement: either sample in parallel, or already in mc, or path evaluation within mcsimulator?
+
+markdown
+https://stackoverflow.com/questions/46495063/how-to-write-math-formulas-for-rust-documentation
+
+// https://medium.com/analytics-vidhya/monte-carlo-simulations-for-predicting-stock-prices-python-a64f53585662
