@@ -2,7 +2,7 @@
 // https://bheisler.github.io/criterion.rs/book/getting_started.html
 
 extern crate pricing;
-use pricing::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator, PathSampler};
+use pricing::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
 use pricing::simulation::GeometricBrownianMotion;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -47,7 +47,7 @@ fn simulate_paths_with_path_generator((nr_paths, nr_steps): (usize, usize)) {
     let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
 
     let paths = mc_simulator.simulate_paths_with(42, StandardNormal, |random_normals| {
-        stock_gbm.generate_path(random_normals)
+        stock_gbm.generate_path(s0, random_normals)
     });
 
     let path_eval = PathEvaluator::new(&paths);
@@ -96,7 +96,7 @@ pub fn criterion_basket_stock_price_simulation(c: &mut Criterion) {
     let mut group = c.benchmark_group("Basket stock price Monte Carlo simulation");
 
     group.bench_function("direct multivariate gbm sampler", |b| {
-        b.iter(|| basket_stock_price_simulation(black_box((10_000, 100))))
+        b.iter(|| basket_stock_price_simulation(black_box((10_000, 200))))
     });
 
     group.finish()

@@ -8,6 +8,7 @@ use ndarray::prelude::*;
 
 use crate::simulation::monte_carlo::PathSampler;
 
+// TODO: add stock/underlying_id for each index
 pub struct MultivariateGeometricBrownianMotion {
     initial_values: Array1<f64>,
     /// drift term

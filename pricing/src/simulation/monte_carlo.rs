@@ -118,6 +118,13 @@ impl<'a, SampleType> PathEvaluator<'a, SampleType> {
         Self { paths }
     }
 
+    // pub fn apply(
+    //     &self,
+    //     path_fn: impl Fn(&'a Path<SampleType>) -> Path<SampleType>,
+    // ) -> Vec<Option<f64>> {
+    //     self.paths.iter().map(path_fn).collect()
+    // }
+
     // TODO: rename apply
     pub fn evaluate(
         &self,
@@ -195,7 +202,7 @@ mod tests {
         let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
 
         let paths = mc_simulator.simulate_paths_with(42, StandardNormal, |standard_normals| {
-            stock_gbm.generate_path(standard_normals)
+            stock_gbm.generate_path(s0, standard_normals)
         });
         assert_eq!(paths.len(), nr_paths);
 

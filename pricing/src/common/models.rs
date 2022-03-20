@@ -28,3 +28,18 @@ impl DerivativeParameter {
         }
     }
 }
+
+pub enum ExerciseType {
+    Put,
+    Call,
+}
+
+type Underlying = String;
+
+pub enum Greek {
+    TheoreticalValue,
+    Delta(Underlying),
+    Gamma(Underlying),
+    Vega(Underlying),
+    CrossGamma((Underlying, Underlying)),
+}

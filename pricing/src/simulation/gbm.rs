@@ -60,10 +60,10 @@ impl GeometricBrownianMotion {
     }
     */
 
-    pub fn generate_path(&self, standard_normals: &[f64]) -> Vec<f64> {
+    pub fn generate_path(&self, initial_value: f64, standard_normals: &[f64]) -> Vec<f64> {
         let mut path = Vec::with_capacity(standard_normals.len() + 1);
 
-        let mut curr_p = self.initial_value;
+        let mut curr_p = initial_value;
         path.push(curr_p);
 
         for z in standard_normals {
