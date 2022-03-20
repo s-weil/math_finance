@@ -1,16 +1,12 @@
-use rand::prelude::IteratorRandom;
 use rand::Rng;
-use rand::{self, prelude::ThreadRng};
-use rand_distr::{DistIter, Distribution, Normal, StandardNormal};
-
-use ndarray::prelude::*;
-// use ndarray_linalg::cholesky::*;
-use ndarray::arr1;
+use rand_distr::{Distribution, StandardNormal};
 use rand_hc::Hc128Rng;
 
-use crate::simulation::distributions::MultivariateNormalDistribution;
+use ndarray::arr1;
+use ndarray::prelude::*;
+// use ndarray_linalg::cholesky::*;
 
-use super::PathSampler;
+use crate::simulation::monte_carlo::PathSampler;
 
 pub struct MultivariateGeometricBrownianMotion {
     initial_values: Array1<f64>,
@@ -73,7 +69,7 @@ impl MultivariateGeometricBrownianMotion {
 
         for std_normal_vec in standard_normals {
             let curr_p = path.last().unwrap();
-            let sample = self.step(&curr_p, &arr1(std_normal_vec));
+            let sample = self.step(curr_p, &arr1(std_normal_vec));
             path.push(sample);
         }
 
@@ -119,11 +115,7 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
 
 impl PathSampler<Array1<f64>> for MultivariateGeometricBrownianMotion {
     #[inline]
-    fn sample_path<'a>(
-        &self,
-        rn_generator: &'a mut Hc128Rng,
-        nr_samples: usize,
-    ) -> Vec<Array1<f64>> {
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
         let dim = self.dim();
 
         let mut path = Vec::with_capacity(nr_samples + 1);
@@ -139,7 +131,7 @@ impl PathSampler<Array1<f64>> for MultivariateGeometricBrownianMotion {
         for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
             let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
             let curr_p = path.last().unwrap();
-            let sample = self.step(&curr_p, &zs_slice);
+            let sample = self.step(curr_p, &zs_slice);
             path.push(sample);
         }
 

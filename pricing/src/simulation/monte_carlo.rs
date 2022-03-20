@@ -10,11 +10,7 @@ pub trait PathSampler<SampleType>: Distribution<SampleType> + Sized {
     }
 
     #[inline]
-    fn sample_path<'a>(
-        &self,
-        rn_generator: &'a mut Hc128Rng,
-        nr_samples: usize,
-    ) -> Vec<SampleType> {
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<SampleType> {
         // unoptimized but generic implementation
         rn_generator.sample_iter(self).take(nr_samples).collect()
 

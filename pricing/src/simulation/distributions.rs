@@ -40,13 +40,13 @@ use ndarray::{Array1, Array2};
 // }
 
 impl PathSampler<f64> for Normal<f64> {
-    fn sample_path<'a>(&self, rn_generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
         rn_generator.sample_iter(*self).take(nr_samples).collect()
     }
 }
 
 impl PathSampler<f64> for StandardNormal {
-    fn sample_path<'a>(&self, rn_generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
         rn_generator.sample_iter(*self).take(nr_samples).collect()
     }
 }
