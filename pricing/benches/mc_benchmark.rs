@@ -15,7 +15,7 @@ use rand_distr::StandardNormal;
 // }
 criterion_group!(
     benches,
-    // criterion_stock_price_simulation,
+    criterion_stock_price_simulation,
     criterion_basket_stock_price_simulation
 );
 criterion_main!(benches);

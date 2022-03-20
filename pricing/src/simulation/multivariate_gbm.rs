@@ -54,7 +54,7 @@ impl MultivariateGeometricBrownianMotion {
         self.initial_values.shape()[0]
     }
     /// See https://en.wikipedia.org/wiki/Geometric_Brownian_motion
-    pub(crate) fn sample(&self, st: &Array1<f64>, std_normal_vec: &Array1<f64>) -> Array1<f64> {
+    pub(crate) fn step(&self, st: &Array1<f64>, std_normal_vec: &Array1<f64>) -> Array1<f64> {
         let d_st_s0: Array1<f64> =
             self.dt * &self.drifts + self.dt.sqrt() * self.cholesky_factor.dot(std_normal_vec);
 
@@ -73,7 +73,7 @@ impl MultivariateGeometricBrownianMotion {
 
         for std_normal_vec in standard_normals {
             let curr_p = path.last().unwrap();
-            let sample = self.sample(&curr_p, &arr1(std_normal_vec));
+            let sample = self.step(&curr_p, &arr1(std_normal_vec));
             path.push(sample);
         }
 
@@ -112,12 +112,11 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Array1<f64> {
         let standard_normals: Vec<f64> = rng.sample_iter(StandardNormal).take(self.dim()).collect();
 
-        // TODO: be careful of initial value!
-        self.sample(&self.initial_values, &Array1::from(standard_normals))
+        // TODO: be careful of fixed initial value!
+        self.step(&self.initial_values, &Array1::from(standard_normals))
     }
 }
 
-// impl PathSampler<Array1<f64>> for MultivariateGeometricBrownianMotion {}
 impl PathSampler<Array1<f64>> for MultivariateGeometricBrownianMotion {
     #[inline]
     fn sample_path<'a>(
@@ -136,12 +135,11 @@ impl PathSampler<Array1<f64>> for MultivariateGeometricBrownianMotion {
             .sample_iter(StandardNormal)
             .take(nr_samples * dim)
             .collect();
-        // TODO: check if faster via sampling for each step, or like this -> benchmark
 
         for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
             let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
             let curr_p = path.last().unwrap();
-            let sample = self.sample(&curr_p, &zs_slice);
+            let sample = self.step(&curr_p, &zs_slice);
             path.push(sample);
         }
 
@@ -167,7 +165,7 @@ mod tests {
             MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
 
         let rand_normals = arr1(&[0.1, -0.1, 0.05]);
-        let sample = mv_gbm.sample(&mv_gbm.initial_values, &rand_normals);
+        let sample = mv_gbm.step(&mv_gbm.initial_values, &rand_normals);
         assert_eq!(sample, arr1(&[1.51, 3.5, 6.84]));
     }
 
