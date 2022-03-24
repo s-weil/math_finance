@@ -45,7 +45,7 @@ impl MonteCarloEuropeanOption {
         path.last().map(|p| (strike - p).max(0.0))
     }
 
-    fn sample_payoffs(&self, pay_off: impl Fn(&Path<f64>) -> Option<f64>) -> Option<f64> {
+    pub fn sample_payoffs(&self, pay_off: impl Fn(&Path<f64>) -> Option<f64>) -> Option<f64> {
         let stock_gbm: GeometricBrownianMotion = self.into();
 
         let paths = self.mc_simulator.simulate_paths(self.seed_nr, stock_gbm);
@@ -54,12 +54,12 @@ impl MonteCarloEuropeanOption {
         path_evaluator.evaluate_average(pay_off)
     }
 
-    /// The price (theoretical value) of the European call option (optimized version).
+    /// The price (theoretical value) of the standard European call option (optimized version).
     pub fn call(&self) -> Option<f64> {
         self.sample_payoffs(|path| self.call_payoff(self.option_params.strike, path))
     }
 
-    /// The price (theoretical value) of the European put option (optimized version).
+    /// The price (theoretical value) of the standard European put option (optimized version).
     pub fn put(&self) -> Option<f64> {
         self.sample_payoffs(|path| self.put_payoff(self.option_params.strike, path))
     }
@@ -127,9 +127,9 @@ mod tests {
     #[test]
     fn european_put_300() {
         let mc_option =
-            MonteCarloEuropeanOption::new(300.0, 290.0, 1.0, 0.03, 0.25, 100_000, 100, 42);
+            MonteCarloEuropeanOption::new(300.0, 290.0, 1.0, 0.03, 0.12, 100_000, 100, 42);
         let put_price = mc_option.put().unwrap();
-        assert_eq!(put_price, 21.02564632067068);
-        assert_approx_eq!(put_price, 20.57, TOLERANCE);
+        assert_eq!(put_price, 6.674824875989639);
+        assert_approx_eq!(put_price, 6.55, TOLERANCE);
     }
 }

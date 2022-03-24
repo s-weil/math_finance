@@ -190,7 +190,6 @@ mod tests {
     #[test]
     fn stock_price_simulation_path_fn() {
         let nr_paths = 100_000;
-        let nr_steps = 100;
         let drift = -0.2;
         let vola = 0.4;
         let s0 = 100.0;
@@ -217,7 +216,6 @@ mod tests {
     #[test]
     fn no_drift_stock_price_simulation() {
         let nr_paths = 100_000;
-        let nr_steps = 100;
         let vola: f64 = 0.4;
         let drift = vola.powi(2) / 2.0;
         let s0 = 100.0;

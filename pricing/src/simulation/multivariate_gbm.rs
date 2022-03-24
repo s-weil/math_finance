@@ -8,13 +8,12 @@ use ndarray::prelude::*;
 
 use crate::simulation::monte_carlo::PathSampler;
 
-// TODO: add stock/underlying_id for each index
 pub struct MultivariateGeometricBrownianMotion {
     initial_values: Array1<f64>,
     /// drift term
     drifts: Array1<f64>,
     /// volatility
-    cholesky_factor: Array2<f64>,
+    cholesky_factor: Array2<f64>, // TODO: consider to proved only referenc to it
     /// change in time
     dt: f64,
 }
@@ -34,6 +33,7 @@ impl MultivariateGeometricBrownianMotion {
         assert_eq!(matrix_shape, &[drifts_shape[0], drifts_shape[0]]);
 
         // TODO: add a check that cholesky_factor is triangular; oR provide only a constructor using the correlation matrix
+        // https://docs.rs/ndarray-linalg/0.9.0/ndarray_linalg/cholesky/index.html
 
         Self {
             initial_values,

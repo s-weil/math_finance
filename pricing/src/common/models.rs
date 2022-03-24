@@ -34,7 +34,7 @@ pub enum ExerciseType {
     Call,
 }
 
-type Underlying = String;
+pub type Underlying = String;
 
 pub enum Greek {
     TheoreticalValue,
@@ -42,4 +42,8 @@ pub enum Greek {
     Gamma(Underlying),
     Vega(Underlying),
     CrossGamma((Underlying, Underlying)),
+}
+
+pub struct GreekConfig {
+    pub shift_size: f64,
 }
