@@ -47,9 +47,7 @@ impl MonteCarloEuropeanOption {
 
     pub fn sample_payoffs(&self, pay_off: impl Fn(&Path<f64>) -> Option<f64>) -> Option<f64> {
         let stock_gbm: GeometricBrownianMotion = self.into();
-
         let paths = self.mc_simulator.simulate_paths(self.seed_nr, stock_gbm);
-
         let path_evaluator = PathEvaluator::new(&paths);
         path_evaluator.evaluate_average(pay_off)
     }

@@ -12,18 +12,19 @@ use ndarray::prelude::*;
 use ndarray::Array2;
 
 use crate::common::models::{DerivativeParameter, Underlying};
-
 use crate::simulation::monte_carlo::MonteCarloPathSimulator;
-
-use crate::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
-
 use crate::simulation::monte_carlo::Path;
+use crate::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
 use crate::simulation::PathEvaluator;
 
+/// Indices of cholesky matrix must be aligned with the indices in weights, asset_proces, rf_rates
 pub struct MonteCarloBasketOption {
-    weights: HashMap<Underlying, f64>,
-    asset_prices: HashMap<Underlying, f64>,
-    rf_rates: HashMap<Underlying, f64>,
+    /// Required for Greeks
+    underlying_map: HashMap<Underlying, usize>,
+
+    weights: Array1<f64>,
+    asset_prices: Array1<f64>,
+    rf_rates: Array1<f64>,
     cholesky_factor: Array2<f64>,
 
     /// the strike or exercise price of the basket
@@ -37,9 +38,10 @@ pub struct MonteCarloBasketOption {
 
 impl MonteCarloBasketOption {
     pub fn new(
-        weights: HashMap<Underlying, f64>,
-        asset_prices: HashMap<Underlying, f64>,
-        rf_rates: HashMap<Underlying, f64>,
+        underlying_map: HashMap<Underlying, usize>,
+        weights: Array1<f64>,
+        asset_prices: Array1<f64>,
+        rf_rates: Array1<f64>,
         cholesky_factor: Array2<f64>,
         strike: f64,
         time_to_expiration: f64,
@@ -50,6 +52,7 @@ impl MonteCarloBasketOption {
     ) -> Self {
         let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
         Self {
+            underlying_map,
             mc_simulator,
             time_to_expiration,
             strike,
@@ -73,17 +76,26 @@ impl MonteCarloBasketOption {
         let path_evaluator = PathEvaluator::new(&paths);
         path_evaluator.evaluate_average(pay_off)
     }
+
+    fn call_payoff(
+        &self,
+        strike: f64,
+        weights: &Array1<f64>,
+        path: &Path<Array1<f64>>,
+    ) -> Option<f64> {
+        path.last().map(|p| (p.dot(weights) - strike).max(0.0))
+    }
 }
 
 impl From<&MonteCarloBasketOption> for MultivariateGeometricBrownianMotion {
     fn from(mceo: &MonteCarloBasketOption) -> Self {
-        let drifts = Array1::from(mceo.rf_rates.values().cloned().collect::<Vec<f64>>());
-        let initial_values =
-            Array1::from(mceo.asset_prices.values().cloned().collect::<Vec<f64>>());
+        // let drifts = Array1::from(mceo.rf_rates.values().cloned().collect::<Vec<f64>>());
+        // let initial_values =
+        //     Array1::from(mceo.asset_prices.values().cloned().collect::<Vec<f64>>());
 
         MultivariateGeometricBrownianMotion::new(
-            initial_values,
-            drifts,
+            mceo.asset_prices.to_owned(),
+            mceo.rf_rates.to_owned(),
             mceo.cholesky_factor.to_owned(),
             mceo.dt(),
         )

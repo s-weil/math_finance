@@ -4,16 +4,16 @@ use rand_hc::Hc128Rng;
 
 use ndarray::arr1;
 use ndarray::prelude::*;
-// use ndarray_linalg::cholesky::*;
 
 use crate::simulation::monte_carlo::PathSampler;
 
+// TODO: maybe store array's as ref instead
 pub struct MultivariateGeometricBrownianMotion {
     initial_values: Array1<f64>,
     /// drift term
     drifts: Array1<f64>,
     /// volatility
-    cholesky_factor: Array2<f64>, // TODO: consider to proved only referenc to it
+    cholesky_factor: Array2<f64>,
     /// change in time
     dt: f64,
 }
@@ -34,6 +34,7 @@ impl MultivariateGeometricBrownianMotion {
 
         // TODO: add a check that cholesky_factor is triangular; oR provide only a constructor using the correlation matrix
         // https://docs.rs/ndarray-linalg/0.9.0/ndarray_linalg/cholesky/index.html
+        // use ndarray_linalg::cholesky::*;
 
         Self {
             initial_values,
@@ -154,8 +155,12 @@ mod tests {
         let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
         let dt = 4.0;
 
-        let mv_gbm =
-            MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
+        let mv_gbm = MultivariateGeometricBrownianMotion::new(
+            &initial_values,
+            &drifts,
+            &cholesky_factor,
+            dt,
+        );
 
         let rand_normals = arr1(&[0.1, -0.1, 0.05]);
         let sample = mv_gbm.step(&mv_gbm.initial_values, &rand_normals);

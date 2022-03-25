@@ -22,7 +22,7 @@ pub trait PathSampler<SampleType>: Distribution<SampleType> + Sized {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MonteCarloPathSimulator<SampleType> {
     pub nr_paths: usize,
     pub nr_steps: usize,
@@ -118,13 +118,6 @@ impl<'a, SampleType> PathEvaluator<'a, SampleType> {
         Self { paths }
     }
 
-    // pub fn apply(
-    //     &self,
-    //     path_fn: impl Fn(&'a Path<SampleType>) -> Path<SampleType>,
-    // ) -> Vec<Option<f64>> {
-    //     self.paths.iter().map(path_fn).collect()
-    // }
-
     // TODO: rename apply
     pub fn evaluate(
         &self,
@@ -180,7 +173,6 @@ mod tests {
         assert_eq!(paths_slice.len(), 100_000);
 
         // sum of independent normal(mu, sigma^2) RVs is a normal(n*mu, n*sigma^2) RV
-        // let avg_price = try_average(&paths);
         let path_eval = PathEvaluator::new(&paths_slice);
         let avg_price = path_eval.evaluate_average(|path| path.last().cloned());
 
