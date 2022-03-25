@@ -155,12 +155,8 @@ mod tests {
         let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
         let dt = 4.0;
 
-        let mv_gbm = MultivariateGeometricBrownianMotion::new(
-            &initial_values,
-            &drifts,
-            &cholesky_factor,
-            dt,
-        );
+        let mv_gbm =
+            MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
 
         let rand_normals = arr1(&[0.1, -0.1, 0.05]);
         let sample = mv_gbm.step(&mv_gbm.initial_values, &rand_normals);

@@ -37,12 +37,12 @@ impl MonteCarloEuropeanOption {
         self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
     }
 
-    fn call_payoff(&self, strike: f64, path: &Path<f64>) -> Option<f64> {
-        path.last().map(|p| (p - strike).max(0.0))
+    fn call_payoff(&self, strike: f64, disc_factor: f64, path: &Path<f64>) -> Option<f64> {
+        path.last().map(|p| (p - strike).max(0.0) * disc_factor)
     }
 
-    fn put_payoff(&self, strike: f64, path: &Path<f64>) -> Option<f64> {
-        path.last().map(|p| (strike - p).max(0.0))
+    fn put_payoff(&self, strike: f64, disc_factor: f64, path: &Path<f64>) -> Option<f64> {
+        path.last().map(|p| (strike - p).max(0.0) * disc_factor)
     }
 
     pub fn sample_payoffs(&self, pay_off: impl Fn(&Path<f64>) -> Option<f64>) -> Option<f64> {
@@ -54,12 +54,14 @@ impl MonteCarloEuropeanOption {
 
     /// The price (theoretical value) of the standard European call option (optimized version).
     pub fn call(&self) -> Option<f64> {
-        self.sample_payoffs(|path| self.call_payoff(self.option_params.strike, path))
+        let disc_factor = (-self.option_params.rfr * self.option_params.time_to_expiration).exp();
+        self.sample_payoffs(|path| self.call_payoff(self.option_params.strike, disc_factor, path))
     }
 
     /// The price (theoretical value) of the standard European put option (optimized version).
     pub fn put(&self) -> Option<f64> {
-        self.sample_payoffs(|path| self.put_payoff(self.option_params.strike, path))
+        let disc_factor = (-self.option_params.rfr * self.option_params.time_to_expiration).exp();
+        self.sample_payoffs(|path| self.put_payoff(self.option_params.strike, disc_factor, path))
     }
 
     /// The greeks of the (put / call) option (optimized with respect to TODO).
@@ -84,7 +86,7 @@ impl MonteCarloEuropeanOption {
         let _put_tv = path_evaluator.evaluate(|standard_normal_path| {
             let stock_prices =
                 stock_gbm.generate_path(self.option_params.asset_price, standard_normal_path);
-            self.put_payoff(self.option_params.strike, &stock_prices)
+            self.put_payoff(self.option_params.strike, 0.0, &stock_prices)
         });
 
         todo!("implement");
@@ -114,20 +116,40 @@ mod tests {
     const TOLERANCE: f64 = 1.5;
 
     #[test]
-    fn european_call_300() {
+    fn european_call() {
         let mc_option =
             MonteCarloEuropeanOption::new(300.0, 310.0, 1.0, 0.03, 0.25, 20_000, 1000, 1);
         let call_price = mc_option.call().unwrap();
-        assert_eq!(call_price, 30.673771953597065);
+        assert_eq!(call_price, 29.76722498945371);
         assert_approx_eq!(call_price, 29.47, TOLERANCE);
     }
 
     #[test]
-    fn european_put_300() {
+    fn european_put() {
         let mc_option =
             MonteCarloEuropeanOption::new(300.0, 290.0, 1.0, 0.03, 0.12, 100_000, 100, 42);
         let put_price = mc_option.put().unwrap();
-        assert_eq!(put_price, 6.674824875989639);
-        assert_approx_eq!(put_price, 6.55, TOLERANCE);
+        assert_eq!(put_price, 6.4775539881225335);
+        assert_approx_eq!(put_price, 6.547, TOLERANCE);
+    }
+
+    /// Reference: https://predictivehacks.com/pricing-of-european-options-with-monte-carlo/
+    #[test]
+    fn european_put_as_of_reference() {
+        let mc_option =
+            MonteCarloEuropeanOption::new(102.0, 100.0, 0.5, 0.02, 0.2, 1_000_000, 100, 42);
+        let put_price = mc_option.put().unwrap();
+        assert_eq!(put_price, 4.2836072940653445); // black scholes ref: 4.293135
+        assert_approx_eq!(put_price, 4.294683, TOLERANCE); // monte carlo ref: 4.294683
+    }
+
+    /// Reference: https://predictivehacks.com/pricing-of-european-options-with-monte-carlo/
+    #[test]
+    fn european_call_as_of_reference() {
+        let mc_option =
+            MonteCarloEuropeanOption::new(102.0, 100.0, 0.5, 0.02, 0.2, 1_000_000, 100, 111111);
+        let call_price = mc_option.call().unwrap();
+        assert_eq!(call_price, 7.285406206467689); // black scholes ref: 7.288151
+        assert_approx_eq!(call_price, 7.290738, TOLERANCE); // monte carlo ref: 7.290738
     }
 }
