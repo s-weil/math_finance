@@ -70,10 +70,13 @@ impl MonteCarloEuropeanBasketOption {
     }
 
     fn sample_payoffs(&self, pay_off: impl Fn(&Path<Array1<f64>>) -> Option<f64>) -> Option<f64> {
+        dbg!("creating gbm");
         let gbm: MultivariateGeometricBrownianMotion = self.into();
 
+        dbg!("creating paths");
         let paths = self.mc_simulator.simulate_paths(self.seed_nr, gbm);
 
+        dbg!("eval'ing paths");
         let path_evaluator = PathEvaluator::new(&paths);
         path_evaluator.evaluate_average(pay_off)
     }
@@ -82,28 +85,38 @@ impl MonteCarloEuropeanBasketOption {
         &self,
         strike: f64,
         weights: &Array1<f64>,
+        disc_factor: f64,
         path: &Path<Array1<f64>>,
     ) -> Option<f64> {
-        path.last().map(|p| (p.dot(weights) - strike).max(0.0))
+        path.last()
+            .map(|p| (p.dot(weights) - strike).max(0.0) * disc_factor)
     }
 
     fn put_payoff(
         &self,
         strike: f64,
         weights: &Array1<f64>,
+        disc_factor: f64,
         path: &Path<Array1<f64>>,
     ) -> Option<f64> {
-        path.last().map(|p| (strike - p.dot(weights)).max(0.0))
+        path.last()
+            .map(|p| (strike - p.dot(weights)).max(0.0) * disc_factor)
+    }
+
+    fn discount_factor(&self, t: f64) -> f64 {
+        (-t * self.rf_rates.dot(&self.weights)).exp()
     }
 
     /// The price (theoretical value) of the standard European call option (optimized version).
     pub fn call(&self) -> Option<f64> {
-        self.sample_payoffs(|path| self.call_payoff(self.strike, &self.weights, path))
+        let disc_factor = self.discount_factor(self.time_to_expiration);
+        self.sample_payoffs(|path| self.call_payoff(self.strike, &self.weights, disc_factor, path))
     }
 
     /// The price (theoretical value) of the standard European put option (optimized version).
     pub fn put(&self) -> Option<f64> {
-        self.sample_payoffs(|path| self.put_payoff(self.strike, &self.weights, path))
+        let disc_factor = self.discount_factor(self.time_to_expiration);
+        self.sample_payoffs(|path| self.put_payoff(self.strike, &self.weights, disc_factor, path))
     }
 }
 
@@ -129,7 +142,7 @@ mod tests {
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     /// compare with analytic solutions from https://goodcalculators.com/black-scholes-calculator/
-    const TOLERANCE: f64 = 1.5;
+    const TOLERANCE: f64 = 1e-1;
 
     #[test]
     fn european_basket_call() {
@@ -152,6 +165,31 @@ mod tests {
         let call_price = mc_option.call().unwrap();
         assert_eq!(call_price, 5.59601793502129);
         // assert_approx_eq!(call_price, 29.47, TOLERANCE);
+    }
+
+    #[test]
+    fn european_basket_call_iid() {
+        let asset_prices = arr1(&[102.0, 102.0]);
+        let rfrs = arr1(&[0.02, 0.02]);
+        let weights = arr1(&[0.5, 0.5]);
+
+        // no correlation between assets
+        let cholesky_factor = arr2(&[[0.2, 0.0], [0.0, 0.2]]);
+
+        let mc_option = MonteCarloEuropeanBasketOption::new(
+            weights,
+            asset_prices,
+            rfrs,
+            cholesky_factor,
+            100.0,
+            0.5,
+            10_000,
+            100,
+            42,
+        );
+        let call_price = mc_option.call().unwrap();
+        dbg!(&call_price);
+        // assert_approx_eq!(call_price, 7.290738, TOLERANCE);
     }
 
     #[test]
@@ -202,7 +240,7 @@ mod tests {
             42,
         );
 
-        //         PriceSens = 0.9822
+        // PriceSens = 0.9822
         // Delta = -0.0995
 
         let call_price = mc_option.put().unwrap();

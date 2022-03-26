@@ -52,15 +52,19 @@ impl MonteCarloEuropeanOption {
         path_evaluator.evaluate_average(pay_off)
     }
 
+    fn discount_factor(&self, t: f64) -> f64 {
+        (-t * self.option_params.rfr).exp()
+    }
+
     /// The price (theoretical value) of the standard European call option (optimized version).
     pub fn call(&self) -> Option<f64> {
-        let disc_factor = (-self.option_params.rfr * self.option_params.time_to_expiration).exp();
+        let disc_factor = self.discount_factor(self.option_params.time_to_expiration);
         self.sample_payoffs(|path| self.call_payoff(self.option_params.strike, disc_factor, path))
     }
 
     /// The price (theoretical value) of the standard European put option (optimized version).
     pub fn put(&self) -> Option<f64> {
-        let disc_factor = (-self.option_params.rfr * self.option_params.time_to_expiration).exp();
+        let disc_factor = self.discount_factor(self.option_params.time_to_expiration);
         self.sample_payoffs(|path| self.put_payoff(self.option_params.strike, disc_factor, path))
     }
 
