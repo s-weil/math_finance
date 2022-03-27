@@ -1,6 +1,4 @@
-use ndarray::Slice;
-use rand::{Rng, SeedableRng};
-use rand_distr::Distribution;
+use rand::SeedableRng;
 use rand_hc::Hc128Rng;
 use std::marker::PhantomData;
 

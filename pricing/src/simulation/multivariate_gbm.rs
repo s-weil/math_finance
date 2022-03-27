@@ -170,14 +170,13 @@ impl PathSampler<Array2<f64>> for MultivariateGeometricBrownianMotion {
         .unwrap(); // TODO deal with error
 
         for idx in 1..nr_samples {
-            let mut slice = sample_matrix.slice(s![idx, ..]);
+            let curr_slice = sample_matrix.slice(s![idx, ..]);
             let prev_slice = sample_matrix.slice(s![idx - 1, ..]);
-            let transformed = self.step(&prev_slice.to_owned(), &slice.to_owned());
+            let transformed = self.step(&prev_slice.to_owned(), &curr_slice.to_owned());
+            // curr_slice(&transformed);
             for i in 0..dim {
                 sample_matrix[[idx, i]] = transformed[i];
             }
-            // &slice.assign_to(transformed);
-            // sample_matrix[[idx, 0..dim]].assign(&transformed);
         }
 
         sample_matrix

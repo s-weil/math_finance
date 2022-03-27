@@ -35,11 +35,11 @@ impl MonteCarloEuropeanOption {
         self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
     }
 
-    fn call_payoff(&self, strike: f64, disc_factor: f64, path: &Vec<f64>) -> Option<f64> {
+    fn call_payoff(&self, strike: f64, disc_factor: f64, path: &[f64]) -> Option<f64> {
         path.last().map(|p| (p - strike).max(0.0) * disc_factor)
     }
 
-    fn put_payoff(&self, strike: f64, disc_factor: f64, path: &Vec<f64>) -> Option<f64> {
+    fn put_payoff(&self, strike: f64, disc_factor: f64, path: &[f64]) -> Option<f64> {
         path.last().map(|p| (strike - p).max(0.0) * disc_factor)
     }
 
