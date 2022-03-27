@@ -1,48 +1,61 @@
+use ndarray::Slice;
 use rand::{Rng, SeedableRng};
 use rand_distr::Distribution;
 use rand_hc::Hc128Rng;
 use std::marker::PhantomData;
 
 /// Inherits from the 'generating distribution'.
-pub trait PathSampler<SampleType>: Distribution<SampleType> + Sized {
+// pub trait PathSampler<SampleType>: Distribution<SampleType> + Sized {
+//     fn rn_generator(&self, seed_nr: u64) -> Hc128Rng {
+//         rand_hc::Hc128Rng::seed_from_u64(seed_nr)
+//     }
+
+//     #[inline]
+//     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<SampleType> {
+//         // unoptimized but generic implementation
+//         rn_generator.sample_iter(self).take(nr_samples).collect()
+
+//         // let mut samples_vec = Vec::with_capacity(nr_samples);
+//         // for _ in 0..nr_samples {
+//         //     samples_vec.push(self.sample(rn_generator));
+//         // }
+//         // samples_vec
+//     }
+// }
+
+// TODO: rename to generator
+pub trait PathSampler<Path> {
+    //}: Distribution<SampleType> {
+    type Distribution; //: Distribution<SampleType>;
+                       // type Path: SlicablePath<SampleType>;
+
     fn rn_generator(&self, seed_nr: u64) -> Hc128Rng {
         rand_hc::Hc128Rng::seed_from_u64(seed_nr)
     }
 
-    #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<SampleType> {
-        // unoptimized but generic implementation
-        rn_generator.sample_iter(self).take(nr_samples).collect()
+    // TODO: is it actually needed?
+    fn base_distribution(&self) -> Self::Distribution;
 
-        // let mut samples_vec = Vec::with_capacity(nr_samples);
-        // for _ in 0..nr_samples {
-        //     samples_vec.push(self.sample(rn_generator));
-        // }
-        // samples_vec
-    }
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Path;
 }
 
 #[derive(Debug, Clone)]
-pub struct MonteCarloPathSimulator<SampleType> {
+pub struct MonteCarloPathSimulator<Path> {
     pub nr_paths: usize,
     pub nr_steps: usize,
-    _phantom: PhantomData<SampleType>,
+    _phantom: PhantomData<Path>,
 }
 
-impl<SampleType> MonteCarloPathSimulator<SampleType> {
+impl<Path> MonteCarloPathSimulator<Path> {
     pub fn new(nr_paths: usize, nr_steps: usize) -> Self {
         Self {
             nr_paths,
             nr_steps,
-            _phantom: PhantomData,
+            _phantom: PhantomData::<Path>,
         }
     }
 
-    pub fn simulate_paths(
-        &self,
-        seed_nr: u64,
-        sampler: impl PathSampler<SampleType>,
-    ) -> Vec<Vec<SampleType>> {
+    pub fn simulate_paths(&self, seed_nr: u64, sampler: impl PathSampler<Path>) -> Vec<Path> {
         let mut paths = Vec::with_capacity(self.nr_paths);
         let mut generator = sampler.rn_generator(seed_nr);
 
@@ -56,9 +69,9 @@ impl<SampleType> MonteCarloPathSimulator<SampleType> {
     pub fn simulate_paths_with(
         &self,
         seed_nr: u64,
-        sampler: impl PathSampler<SampleType>,
-        path_fn: impl Fn(&PathSlice<SampleType>) -> Path<SampleType>,
-    ) -> Vec<Vec<SampleType>> {
+        sampler: impl PathSampler<Path>,
+        path_fn: impl Fn(&Path) -> Path,
+    ) -> Vec<Path> {
         let mut paths = Vec::with_capacity(self.nr_paths);
         let mut generator = sampler.rn_generator(seed_nr);
 
@@ -73,9 +86,9 @@ impl<SampleType> MonteCarloPathSimulator<SampleType> {
     pub fn simulate_paths_apply_in_place(
         &self,
         seed_nr: u64,
-        sampler: impl PathSampler<SampleType>,
-        apply_in_place_fn: impl Fn(&mut PathSlice<SampleType>),
-    ) -> Vec<Vec<SampleType>> {
+        sampler: impl PathSampler<Path>,
+        apply_in_place_fn: impl Fn(&mut Path),
+    ) -> Vec<Path> {
         let mut paths = Vec::with_capacity(self.nr_paths);
         let mut generator = sampler.rn_generator(seed_nr);
 
@@ -106,30 +119,24 @@ impl<SampleType> MonteCarloPathSimulator<SampleType> {
     // }
 }
 
-pub type Path<SampleType> = Vec<SampleType>;
-pub type PathSlice<SampleType> = [SampleType];
+// pub type Path<SampleType> = Vec<SampleType>;
+// pub type PathSlice<SampleType> = [SampleType];
 
-pub struct PathEvaluator<'a, SampleType> {
-    paths: &'a [Path<SampleType>],
+pub struct PathEvaluator<'a, Path> {
+    paths: &'a [Path],
 }
 
-impl<'a, SampleType> PathEvaluator<'a, SampleType> {
-    pub fn new(paths: &'a [Path<SampleType>]) -> Self {
+impl<'a, Path> PathEvaluator<'a, Path> {
+    pub fn new(paths: &'a [Path]) -> Self {
         Self { paths }
     }
 
     // TODO: rename apply
-    pub fn evaluate(
-        &self,
-        path_fn: impl Fn(&'a Path<SampleType>) -> Option<f64>,
-    ) -> Vec<Option<f64>> {
+    pub fn evaluate(&self, path_fn: impl Fn(&'a Path) -> Option<f64>) -> Vec<Option<f64>> {
         self.paths.iter().map(path_fn).collect()
     }
 
-    pub fn evaluate_average(
-        &self,
-        path_fn: impl Fn(&'a Path<SampleType>) -> Option<f64>,
-    ) -> Option<f64> {
+    pub fn evaluate_average(&self, path_fn: impl Fn(&'a Path) -> Option<f64>) -> Option<f64> {
         if self.paths.is_empty() {
             return None;
         }

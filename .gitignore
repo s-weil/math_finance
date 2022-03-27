@@ -16,4 +16,5 @@ Cargo.lock
 
 # flamegraph output
 perf.*
-flamegraph*
+*flamegraph*
+

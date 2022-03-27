@@ -118,9 +118,10 @@ fn basket_stock_price_simulation((nr_paths, nr_steps): (usize, usize)) {
     let path_eval = PathEvaluator::new(&paths);
 
     let avg_price = path_eval.evaluate_average(|path| {
-        path.last()
-            .cloned()
-            .map(|p| p.iter().fold(0.0, |acc, x| acc + x))
+        path.axis_iter(ndarray::Axis(1)).last().map(|a| a.sum())
+        // path.last()
+        //     .cloned()
+        //     .map(|p| p.iter().fold(0.0, |acc, x| acc + x))
     });
     assert!(avg_price.is_some());
 }

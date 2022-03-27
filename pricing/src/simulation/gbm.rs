@@ -92,13 +92,18 @@ impl Distribution<f64> for GeometricBrownianMotion {
     }
 }
 
-impl PathSampler<f64> for GeometricBrownianMotion {
-    // #[inline]
+impl PathSampler<Vec<f64>> for GeometricBrownianMotion {
+    type Distribution = StandardNormal;
+
+    fn base_distribution(&self) -> Self::Distribution {
+        StandardNormal
+    }
+
+    #[inline]
     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
-        let mut standard_normals: Vec<f64> = rn_generator
-            .sample_iter(StandardNormal)
-            .take(nr_samples)
-            .collect();
+        let distr = StandardNormal;
+        let mut standard_normals: Vec<f64> =
+            rn_generator.sample_iter(distr).take(nr_samples).collect();
 
         self.generate_in_place(&mut standard_normals);
         standard_normals

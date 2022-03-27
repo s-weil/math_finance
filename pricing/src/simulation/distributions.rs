@@ -39,13 +39,25 @@ use ndarray::{Array1, Array2};
 //     }
 // }
 
-impl PathSampler<f64> for Normal<f64> {
+impl PathSampler<Vec<f64>> for Normal<f64> {
+    type Distribution = Normal<f64>;
+
+    fn base_distribution(&self) -> Self::Distribution {
+        *self
+    }
+
     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
         rn_generator.sample_iter(*self).take(nr_samples).collect()
     }
 }
 
-impl PathSampler<f64> for StandardNormal {
+impl PathSampler<Vec<f64>> for StandardNormal {
+    type Distribution = StandardNormal;
+
+    fn base_distribution(&self) -> Self::Distribution {
+        StandardNormal
+    }
+
     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
         rn_generator.sample_iter(*self).take(nr_samples).collect()
     }
@@ -55,8 +67,8 @@ impl PathSampler<f64> for StandardNormal {
 pub struct MultivariateNormalDistribution {
     /// expected values (as by coordinate)
     mu: Array1<f64>,
-    /// correlation structure via the cholesky_factor $C$ which satisfies
-    /// $C*C^T = \Sigma$ for the covariance matrix $\Sigma$
+    /// correlation structure via the cholesky_factor $C$ which is upper triangular and satisfies
+    /// $C^T*C = \Sigma$ for the covariance matrix $\Sigma$
     cholesky_factor: Array2<f64>,
 }
 
@@ -116,22 +128,107 @@ impl Distribution<Array1<f64>> for MultivariateNormalDistribution {
     }
 }
 
-impl PathSampler<Array1<f64>> for MultivariateNormalDistribution {
-    // fn samples<'a>(&self, rn_generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+impl PathSampler<Array2<f64>> for MultivariateNormalDistribution {
+    type Distribution = StandardNormal;
+
+    fn base_distribution(&self) -> Self::Distribution {
+        StandardNormal
+    }
+
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
+        let dim = self.dim();
+        let distr = StandardNormal;
+
+        let mut sample_matrix = Array2::from_shape_vec(
+            (dim, nr_samples),
+            rn_generator
+                .sample_iter(distr)
+                .take(nr_samples * dim)
+                .collect(),
+        )
+        .unwrap(); // TODO deal with error
+
+        for mut col in sample_matrix.columns_mut() {
+            let rdn = self.transform_sample(&col.to_owned());
+            col.assign(&rdn);
+            // sample_matrix.slice_mut(s![.., idx]).assign(&col);
+        }
+
+        // for idx in 0..nr_samples {
+        //     let mut slice = sample_matrix.slice_mut(s![.., idx]);
+        //     let col = self.transform_sample(&slice.to_owned());
+        //     sample_matrix.slice_mut(s![.., idx]).assign(&col);
+        // }
+
+        sample_matrix
+    }
+
+    // fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
     //     let dim = self.dim();
+    //     let distr = StandardNormal;
 
-    //     let samples_vec: Vec<Array1<f64>> = Vec::with_capacity(nr_samples);
+    //     let mut sample_matrix = Array2::from_shape_vec(
+    //         (nr_samples, dim),
+    //         rn_generator
+    //             .sample_iter(distr)
+    //             .take(nr_samples * dim)
+    //             .collect(),
+    //     )
+    //     .unwrap(); // TODO deal with error
 
-    //     for step in 0..nr_samples {
-    //         let standard_normals: Vec<f64> =
-    //             rn_generator.sample_iter(distr).take(nr_samples).collect();
-
-    //         samples_vec.push(self.transform_sample(&Array1::from(standard_normals)))
+    //     for (mut col) in sample_matrix.columns_mut() {
+    //         let col2 = self.transform_sample(&col);
+    //         col = col2
     //     }
 
-    //     samples_vec
+    //     // for x in sample_matrix.axis_iter_mut(ndarray::Axis(0)) {
+    //     //     let transformed = self.transform_sample(&x);
+    //     //     x = transformed;
+    //     // }
+
+    //     // sample_matrix
+    //     //     .axis_iter(ndarray::Axis(0))
+    //     //     .map(|slice| self.transform_sample(&slice))
+    //     //     .collect()
+
+    //     // for idx in 0..nr_samples {
+    //     //     let mut slice = sample_matrix.slice(s![idx, ..]);
+    //     //     let transformed = self.transform_sample(&slice.to_owned());
+    //     //     for i in 0..dim {
+    //     //         sample_matrix[[idx, i]] = transformed[i];
+    //     //     }
+    //     //     // &slice.assign_to(transformed);
+    //     //     // sample_matrix[[idx, 0..dim]].assign(&transformed);
+    //     // }
+
+    //     sample_matrix
+
+    //     //     for step in 0..nr_samples {
+    //     //         let standard_normals: Vec<f64> =
+    //     //             rn_generator.sample_iter(distr).take(nr_samples).collect();
+
+    //     //         samples_vec.push(self.transform_sample(&Array1::from(standard_normals)))
+    //     //     }
+
+    //     //     samples_vec
     // }
 }
+
+//     // fn samples<'a>(&self, rn_generator: &'a mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+//     //     let dim = self.dim();
+
+//     //     let samples_vec: Vec<Array1<f64>> = Vec::with_capacity(nr_samples);
+
+//     //     for step in 0..nr_samples {
+//     //         let standard_normals: Vec<f64> =
+//     //             rn_generator.sample_iter(distr).take(nr_samples).collect();
+
+//     //         samples_vec.push(self.transform_sample(&Array1::from(standard_normals)))
+//     //     }
+
+//     //     samples_vec
+//     // }
+// }
 
 // impl Sampler for MultivariateNormalDistribution {
 //     type GeneratingDistribution = StandardNormal;
@@ -204,7 +301,7 @@ mod tests {
         assert_eq!(sample, mu);
 
         let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
-        let mv_normal = MultivariateNormalDistribution::new(mu.clone(), cholesky_factor);
+        let mv_normal = MultivariateNormalDistribution::new(mu.to_owned(), cholesky_factor);
         let sample = mv_normal.sample(&mut rn_generator);
         assert_eq!(
             sample,
@@ -221,16 +318,17 @@ mod tests {
         let mv_normal = MultivariateNormalDistribution::new(mu, cholesky_factor);
         let samples = mv_normal.sample_path(&mut rn_generator, 100_000);
 
-        assert_eq!(samples.len(), 100_000);
+        assert_eq!(samples.shape(), &[3, 100_000]);
 
-        let sums = samples
-            .iter()
-            .fold(arr1(&[0.0, 0.0, 0.0]), |acc, s| &acc + s);
+        let mut sums = arr1(&[0.0, 0.0, 0.0]);
+        for c in samples.columns() {
+            sums = &sums + &c;
+        }
 
         // want approx 'assert_eq!(sums / 100_000.0, mu)'
         assert_eq!(
             sums / 100_000.0,
-            arr1(&[0.09947180969400722, 0.2024348660185755, 0.30033038001924606])
+            arr1(&[0.09734041097783784, 0.20242533842636964, 0.3057350243384335])
         );
     }
 }

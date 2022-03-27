@@ -51,17 +51,13 @@ impl MultivariateGeometricBrownianMotion {
     fn dim(&self) -> usize {
         self.initial_values.shape()[0]
     }
+
     /// See https://en.wikipedia.org/wiki/Geometric_Brownian_motion
     pub(crate) fn step(&self, st: &Array1<f64>, std_normal_vec: &Array1<f64>) -> Array1<f64> {
         let d_st_s0: Array1<f64> =
             self.dt * &self.drifts + self.dt.sqrt() * self.cholesky_factor.dot(std_normal_vec);
 
-        let d_st: Array1<f64> = d_st_s0
-            .iter()
-            .zip(st.iter())
-            .map(|(dst, st)| dst * st)
-            .collect();
-        st + d_st // d_St = S_t+1 - St
+        st + st * &d_st_s0
     }
 
     pub fn generate_path(&self, standard_normals: &[&[f64]]) -> Vec<Array1<f64>> {
@@ -115,30 +111,114 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
     }
 }
 
-impl PathSampler<Array1<f64>> for MultivariateGeometricBrownianMotion {
+// pub struct SlicePath {
+//     slice_dim: usize,
+//     nr_slices: usize,
+//     samples: Vec<f64>,
+// }
+
+// impl PathSampler<SlicePath> for MultivariateGeometricBrownianMotion {
+//     #[inline]
+//     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+//         let dim = self.dim();
+
+//         let mut path = Vec::with_capacity(nr_samples + 1);
+
+//         path.push(self.initial_values.clone());
+
+//         for _ in 0..nr_samples {
+//             let samples = rn_generator.sample_iter(StandardNormal).take(dim).collect();
+//             path.push(samples);
+//         }
+
+//         // // create the random normal numbers for the whole path and all dimensions
+//         // let path_std_normals: Vec<f64> = rn_generator
+//         //     .sample_iter(StandardNormal)
+//         //     .take(nr_samples * dim)
+//         //     .collect();
+
+//         // for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
+//         //     let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
+//         //     // let curr_p = path.last().unwrap();
+//         //     // let sample = self.step(curr_p, &zs_slice);
+//         //     path.push(zs_slice);
+//         // }
+
+//         path
+//     }
+// }
+
+impl PathSampler<Array2<f64>> for MultivariateGeometricBrownianMotion {
+    type Distribution = StandardNormal;
+
+    fn base_distribution(&self) -> Self::Distribution {
+        StandardNormal
+    }
+
     #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
         let dim = self.dim();
+        let distr = StandardNormal;
 
-        let mut path = Vec::with_capacity(nr_samples + 1);
+        let mut sample_matrix = Array2::from_shape_vec(
+            (nr_samples, dim),
+            rn_generator
+                .sample_iter(distr)
+                .take(nr_samples * dim)
+                .collect(),
+        )
+        .unwrap(); // TODO deal with error
 
-        path.push(self.initial_values.clone());
-
-        // create the random normal numbers for the whole path and all dimensions
-        let path_std_normals: Vec<f64> = rn_generator
-            .sample_iter(StandardNormal)
-            .take(nr_samples * dim)
-            .collect();
-
-        for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
-            let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
-            let curr_p = path.last().unwrap();
-            let sample = self.step(curr_p, &zs_slice);
-            path.push(sample);
+        for idx in 1..nr_samples {
+            let mut slice = sample_matrix.slice(s![idx, ..]);
+            let prev_slice = sample_matrix.slice(s![idx - 1, ..]);
+            let transformed = self.step(&prev_slice.to_owned(), &slice.to_owned());
+            for i in 0..dim {
+                sample_matrix[[idx, i]] = transformed[i];
+            }
+            // &slice.assign_to(transformed);
+            // sample_matrix[[idx, 0..dim]].assign(&transformed);
         }
 
-        path
+        sample_matrix
+
+        // // create the random normal numbers for the whole path and all dimensions
+        // let path_std_normals: Vec<f64> = rn_generator
+        //     .sample_iter(StandardNormal)
+        //     .take(nr_samples * dim)
+        //     .collect();
+
+        // for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
+        //     let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
+        //     // let curr_p = path.last().unwrap();
+        //     // let sample = self.step(curr_p, &zs_slice);
+        //     path.push(zs_slice);
+        // }
     }
+
+    // #[inline]
+    // fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+    //     let dim = self.dim();
+
+    //     let mut path = Vec::with_capacity(nr_samples + 1);
+
+    //     path.push(self.initial_values.clone());
+
+    //     // create the random normal numbers for the whole path and all dimensions
+    //     let path_std_normals: Vec<f64> = rn_generator
+    //         .sample_iter(StandardNormal)
+    //         .take(nr_samples * dim)
+    //         .collect();
+
+    //     for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
+    //         let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
+    //         let curr_p = path.last().unwrap();
+    //         let sample = self.step(curr_p, &zs_slice);
+    //         path.push(sample);
+    //     }
+
+    //     path
+    // }
 }
 
 #[cfg(test)]
@@ -182,11 +262,9 @@ mod tests {
 
         let path_eval = PathEvaluator::new(&paths);
 
-        let avg_price = path_eval.evaluate_average(|path| {
-            path.last()
-                .cloned()
-                .map(|p| p.iter().fold(0.0, |acc, x| acc + x))
-        });
-        assert!(avg_price.unwrap() > 0.0);
+        let avg_price =
+            path_eval.evaluate_average(|path| path.axis_iter(Axis(1)).last().map(|p| p.sum()));
+        // assert!(avg_price.unwrap() > 0.0);
+        dbg!(avg_price);
     }
 }

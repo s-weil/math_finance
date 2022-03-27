@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
-use rand_distr::StandardNormal;
-
 use crate::common::models::{DerivativeParameter, ExerciseType, Greek};
 use crate::simulation::gbm::GeometricBrownianMotion;
-use crate::simulation::monte_carlo::{MonteCarloPathSimulator, Path, PathEvaluator};
+use crate::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
 
 pub struct MonteCarloEuropeanOption {
     option_params: DerivativeParameter,
-    mc_simulator: MonteCarloPathSimulator<f64>,
+    mc_simulator: MonteCarloPathSimulator<Vec<f64>>,
     seed_nr: u64,
 }
 
@@ -37,15 +35,15 @@ impl MonteCarloEuropeanOption {
         self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
     }
 
-    fn call_payoff(&self, strike: f64, disc_factor: f64, path: &Path<f64>) -> Option<f64> {
+    fn call_payoff(&self, strike: f64, disc_factor: f64, path: &Vec<f64>) -> Option<f64> {
         path.last().map(|p| (p - strike).max(0.0) * disc_factor)
     }
 
-    fn put_payoff(&self, strike: f64, disc_factor: f64, path: &Path<f64>) -> Option<f64> {
+    fn put_payoff(&self, strike: f64, disc_factor: f64, path: &Vec<f64>) -> Option<f64> {
         path.last().map(|p| (strike - p).max(0.0) * disc_factor)
     }
 
-    pub fn sample_payoffs(&self, pay_off: impl Fn(&Path<f64>) -> Option<f64>) -> Option<f64> {
+    pub fn sample_payoffs(&self, pay_off: impl Fn(&Vec<f64>) -> Option<f64>) -> Option<f64> {
         let stock_gbm: GeometricBrownianMotion = self.into();
         let paths = self.mc_simulator.simulate_paths(self.seed_nr, stock_gbm);
         let path_evaluator = PathEvaluator::new(&paths);
@@ -74,24 +72,24 @@ impl MonteCarloEuropeanOption {
         _exercise_type: &ExerciseType,
         _greeks: Vec<Greek>,
     ) -> HashMap<Greek, Option<f64>> {
-        let standard_normal_paths = self
-            .mc_simulator
-            .simulate_paths(self.seed_nr, StandardNormal);
+        // let standard_normal_paths = self
+        //     .mc_simulator
+        //     .simulate_paths(self.seed_nr, StandardNormal);
 
-        let path_evaluator = PathEvaluator::new(&standard_normal_paths);
+        // let path_evaluator = PathEvaluator::new(&standard_normal_paths);
 
-        // let pay_off = match exercise_type {
-        //     ExerciseType::Put => |path: &Path<f64>| self.put_payoff(self.option_params.strike, path),
-        //     ExerciseType::Call => |path: &Path<f64>| self.call_payoff(self.option_params.strike, path),
-        // };
+        // // let pay_off = match exercise_type {
+        // //     ExerciseType::Put => |path: &Path<f64>| self.put_payoff(self.option_params.strike, path),
+        // //     ExerciseType::Call => |path: &Path<f64>| self.call_payoff(self.option_params.strike, path),
+        // // };
 
-        let stock_gbm: GeometricBrownianMotion = self.into();
+        // let stock_gbm: GeometricBrownianMotion = self.into();
 
-        let _put_tv = path_evaluator.evaluate(|standard_normal_path| {
-            let stock_prices =
-                stock_gbm.generate_path(self.option_params.asset_price, standard_normal_path);
-            self.put_payoff(self.option_params.strike, 0.0, &stock_prices)
-        });
+        // let _put_tv = path_evaluator.evaluate(|standard_normal_path| {
+        //     let stock_prices =
+        //         stock_gbm.generate_path(self.option_params.asset_price, standard_normal_path);
+        //     self.put_payoff(self.option_params.strike, 0.0, &stock_prices)
+        // });
 
         todo!("implement");
     }
