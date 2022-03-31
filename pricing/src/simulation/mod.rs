@@ -2,6 +2,7 @@ pub mod basket_option;
 pub mod distributions;
 pub mod european_option;
 pub mod gbm;
+pub mod greek_engine;
 pub mod monte_carlo;
 pub mod multivariate_gbm;
 
