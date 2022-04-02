@@ -98,17 +98,18 @@ impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
             let curr_slice = sample_matrix.slice(s![idx, ..]);
             let prev_slice = sample_matrix.slice(s![idx - 1, ..]);
             let transformed = self.step(&prev_slice.to_owned(), &curr_slice.to_owned());
+            sample_matrix.slice(s![idx, ..]).assign(&transformed);
             // curr_slice(&transformed);
-            for i in 0..dim {
-                sample_matrix[[idx, i]] = transformed[i];
-            }
+            // for i in 0..dim {
+            //     sample_matrix[[idx, i]] = transformed[i];
+            // }
         }
 
         sample_matrix
     }
 }
 
-// TODO: still needed
+// TODO: still needed?
 impl PathGenerator<Vec<Array1<f64>>> for MultivariateGeometricBrownianMotion {
     #[inline]
     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {

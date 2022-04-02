@@ -115,12 +115,46 @@ impl PathGenerator<Vec<Array1<f64>>> for MultivariateNormalDistribution {
     }
 }
 
-// pub struct SlicePath {
-//     slice_dim: usize,
-//     nr_slices: usize,
-//     samples: Vec<f64>,
-// }
+// TODO: try to optimize or delete
+pub struct SlicePath {
+    nr_samples: usize,
+    dim: usize,
+    samples: Vec<f64>,
+}
 
+impl std::iter::Iterator for SlicePath {
+    type Item = Array1<f64>; // would be better to not allocate here!
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut out = Vec::with_capacity(self.dim);
+        for _ in 0..self.dim {
+            if let Some(s) = self.samples.iter().next() {
+                out.push(*s);
+            } else {
+                return None;
+            }
+        }
+        Some(Array1::from(out))
+    }
+}
+
+impl PathGenerator<SlicePath> for MultivariateNormalDistribution {
+    #[inline]
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> SlicePath {
+        let dim = self.dim();
+        let distr = StandardNormal;
+
+        let standard_normals: Vec<f64> = rn_generator
+            .sample_iter(distr)
+            .take(nr_samples * dim)
+            .collect();
+
+        SlicePath {
+            dim,
+            nr_samples,
+            samples: standard_normals,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
