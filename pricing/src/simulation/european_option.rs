@@ -4,6 +4,8 @@ use crate::common::models::{DerivativeParameter, ExerciseType, Greek};
 use crate::simulation::gbm::GeometricBrownianMotion;
 use crate::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
 
+use super::greek_engine::Pricer;
+
 pub struct MonteCarloEuropeanOption {
     option_params: DerivativeParameter,
     mc_simulator: MonteCarloPathSimulator<Vec<f64>>,
@@ -107,6 +109,26 @@ impl From<&MonteCarloEuropeanOption> for GeometricBrownianMotion {
         )
     }
 }
+
+// pub struct MonteCarloEuropeanputOption {
+//     base: MonteCarloEuropeanOption
+// }
+
+// impl Pricer<f64, &[f64], Vec<f64>> for MonteCarloEuropeanputOption {
+//     fn random_generator(&self) -> Vec<Vec<f64>> {
+//         self.base.mc_simulator.simulate_paths(self.base.seed_nr, rand_distr::StandardNormal)
+//     }
+
+//     fn eval(&self, paths: &Vec<Vec<f64>>) -> Option<f64> {
+//         let path_evaluator = PathEvaluator::new(&paths);
+//         let disc_factor = self.base.discount_factor(self.base.option_params.time_to_expiration);
+//         let pay_off = |path| self.base.put_payoff(self.base.option_params.strike, disc_factor, path);
+//         path_evaluator.evaluate_average(pay_off)
+//     }
+// }
+
+
+
 
 #[cfg(test)]
 mod tests {

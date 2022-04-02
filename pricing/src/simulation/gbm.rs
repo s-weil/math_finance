@@ -109,3 +109,12 @@ impl PathSampler<Vec<f64>> for GeometricBrownianMotion {
         standard_normals
     }
 }
+
+use crate::simulation::greek_engine::Dynamics;
+
+impl Dynamics<f64, &[f64], Vec<f64>> for GeometricBrownianMotion {
+    #[inline]
+    fn transform(&self, initial_value: f64, std_normals: &[f64]) -> Vec<f64> { 
+        self.generate_path(initial_value, std_normals)
+    }
+}
