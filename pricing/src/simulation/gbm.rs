@@ -2,7 +2,8 @@ use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
 use rand_hc::Hc128Rng;
 
-use crate::simulation::monte_carlo::PathSampler;
+use crate::simulation::greek_engine::Dynamics;
+use crate::simulation::monte_carlo::PathGenerator;
 
 /// Model params for the SDE
 /// '''math
@@ -46,20 +47,6 @@ impl GeometricBrownianMotion {
         st * ret.exp()
     }
 
-    /*/
-    fn path_value(
-        &self,
-        s0: f64,
-        nr_steps: usize,
-        dist_iter: DistIter<Normal<f64>, &mut ThreadRng, f64>,
-        // normal_distr: impl Iterator<Item = f64>,
-    ) -> f64 {
-        dist_iter
-            .take(nr_steps)
-            .fold(s0, |curr_p, z| self.sample(curr_p, z))
-    }
-    */
-
     pub fn generate_path(&self, initial_value: f64, standard_normals: &[f64]) -> Vec<f64> {
         let mut path = Vec::with_capacity(standard_normals.len() + 1);
 
@@ -87,18 +74,12 @@ impl GeometricBrownianMotion {
 impl Distribution<f64> for GeometricBrownianMotion {
     #[inline]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
-        // TODO: be careful of initial value!
+        // NOTE: be careful of initial value!
         self.step_analytic(self.initial_value, rng.sample(StandardNormal))
     }
 }
 
-impl PathSampler<Vec<f64>> for GeometricBrownianMotion {
-    type Distribution = StandardNormal;
-
-    fn base_distribution(&self) -> Self::Distribution {
-        StandardNormal
-    }
-
+impl PathGenerator<Vec<f64>> for GeometricBrownianMotion {
     #[inline]
     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
         let distr = StandardNormal;
@@ -110,11 +91,9 @@ impl PathSampler<Vec<f64>> for GeometricBrownianMotion {
     }
 }
 
-use crate::simulation::greek_engine::Dynamics;
-
 impl Dynamics<f64, &[f64], Vec<f64>> for GeometricBrownianMotion {
     #[inline]
-    fn transform(&self, initial_value: f64, std_normals: &[f64]) -> Vec<f64> { 
+    fn transform(&self, initial_value: f64, std_normals: &[f64]) -> Vec<f64> {
         self.generate_path(initial_value, std_normals)
     }
 }

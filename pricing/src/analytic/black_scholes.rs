@@ -39,7 +39,7 @@ impl OptionPrice for BlackScholesMerton {
 }
 
 /// European Put and Call option prices for futures.
-///  https://en.wikipedia.org/wiki/Black_model
+/// https://en.wikipedia.org/wiki/Black_model
 pub struct Black76;
 
 impl OptionPrice for Black76 {

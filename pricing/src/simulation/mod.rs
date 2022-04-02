@@ -7,4 +7,4 @@ pub mod monte_carlo;
 pub mod multivariate_gbm;
 
 pub use gbm::GeometricBrownianMotion;
-pub use monte_carlo::{PathEvaluator, PathSampler};
+pub use monte_carlo::{PathEvaluator, PathGenerator};

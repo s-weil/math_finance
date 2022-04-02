@@ -1,13 +1,11 @@
+use ndarray::arr1;
+use ndarray::prelude::*;
 use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
 use rand_hc::Hc128Rng;
 
-use ndarray::arr1;
-use ndarray::prelude::*;
+use crate::simulation::monte_carlo::PathGenerator;
 
-use crate::simulation::monte_carlo::PathSampler;
-
-// TODO: maybe store array's as ref instead
 pub struct MultivariateGeometricBrownianMotion {
     initial_values: Array1<f64>,
     /// drift term
@@ -44,10 +42,6 @@ impl MultivariateGeometricBrownianMotion {
         }
     }
 
-    // pub fn base_distribution(&self) -> MultivariateNormalDistribution {
-    //     MultivariateNormalDistribution::new(00., self.cholesky_factor)
-    // }
-
     fn dim(&self) -> usize {
         self.initial_values.shape()[0]
     }
@@ -73,32 +67,6 @@ impl MultivariateGeometricBrownianMotion {
 
         path
     }
-
-    // pub fn sample_path(
-    //     &self,
-    //     initial_values: &Array1<f64>,
-    //     nr_steps: usize,
-    //     normal_distr: DistIter<Normal<f64>, &mut ThreadRng, f64>,
-    // ) -> Vec<Vec<f64>> {
-    //     let mut path = Vec::with_capacity(nr_steps + 1);
-
-    //     path.push(initial_values.to_vec());
-
-    //     let dim = initial_values.shape()[0];
-    //     let mut rng = rand::thread_rng();
-
-    //     // create the random normal numbers for the whole path and all dimensions
-    //     let path_zs = normal_distr.choose_multiple(&mut rng, dim * nr_steps);
-
-    //     for (idx, _) in path_zs.iter().enumerate().step_by(dim) {
-    //         let zs_slice = arr1(&path_zs[idx..idx + dim]);
-    //         let curr_p = arr1(&path.last().unwrap());
-    //         let sample = self.sample(&curr_p, &zs_slice);
-    //         path.push(sample.to_vec());
-    //     }
-
-    //     path
-    // }
 }
 
 impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
@@ -106,55 +74,12 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Array1<f64> {
         let standard_normals: Vec<f64> = rng.sample_iter(StandardNormal).take(self.dim()).collect();
 
-        // TODO: be careful of fixed initial value!
+        // NOTE: be careful of fixed initial value!
         self.step(&self.initial_values, &Array1::from(standard_normals))
     }
 }
 
-// pub struct SlicePath {
-//     slice_dim: usize,
-//     nr_slices: usize,
-//     samples: Vec<f64>,
-// }
-
-// impl PathSampler<SlicePath> for MultivariateGeometricBrownianMotion {
-//     #[inline]
-//     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
-//         let dim = self.dim();
-
-//         let mut path = Vec::with_capacity(nr_samples + 1);
-
-//         path.push(self.initial_values.clone());
-
-//         for _ in 0..nr_samples {
-//             let samples = rn_generator.sample_iter(StandardNormal).take(dim).collect();
-//             path.push(samples);
-//         }
-
-//         // // create the random normal numbers for the whole path and all dimensions
-//         // let path_std_normals: Vec<f64> = rn_generator
-//         //     .sample_iter(StandardNormal)
-//         //     .take(nr_samples * dim)
-//         //     .collect();
-
-//         // for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
-//         //     let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
-//         //     // let curr_p = path.last().unwrap();
-//         //     // let sample = self.step(curr_p, &zs_slice);
-//         //     path.push(zs_slice);
-//         // }
-
-//         path
-//     }
-// }
-
-impl PathSampler<Array2<f64>> for MultivariateGeometricBrownianMotion {
-    type Distribution = StandardNormal;
-
-    fn base_distribution(&self) -> Self::Distribution {
-        StandardNormal
-    }
-
+impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
     #[inline]
     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
         let dim = self.dim();
@@ -180,44 +105,34 @@ impl PathSampler<Array2<f64>> for MultivariateGeometricBrownianMotion {
         }
 
         sample_matrix
-
-        // // create the random normal numbers for the whole path and all dimensions
-        // let path_std_normals: Vec<f64> = rn_generator
-        //     .sample_iter(StandardNormal)
-        //     .take(nr_samples * dim)
-        //     .collect();
-
-        // for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
-        //     let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
-        //     // let curr_p = path.last().unwrap();
-        //     // let sample = self.step(curr_p, &zs_slice);
-        //     path.push(zs_slice);
-        // }
     }
+}
 
-    // #[inline]
-    // fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
-    //     let dim = self.dim();
+// TODO: still needed
+impl PathGenerator<Vec<Array1<f64>>> for MultivariateGeometricBrownianMotion {
+    #[inline]
+    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+        let dim = self.dim();
 
-    //     let mut path = Vec::with_capacity(nr_samples + 1);
+        let mut path = Vec::with_capacity(nr_samples + 1);
 
-    //     path.push(self.initial_values.clone());
+        path.push(self.initial_values.clone());
 
-    //     // create the random normal numbers for the whole path and all dimensions
-    //     let path_std_normals: Vec<f64> = rn_generator
-    //         .sample_iter(StandardNormal)
-    //         .take(nr_samples * dim)
-    //         .collect();
+        // create the random normal numbers for the whole path and all dimensions
+        let path_std_normals: Vec<f64> = rn_generator
+            .sample_iter(StandardNormal)
+            .take(nr_samples * dim)
+            .collect();
 
-    //     for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
-    //         let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
-    //         let curr_p = path.last().unwrap();
-    //         let sample = self.step(curr_p, &zs_slice);
-    //         path.push(sample);
-    //     }
+        for (idx, _) in path_std_normals.iter().enumerate().step_by(dim) {
+            let zs_slice = arr1(&path_std_normals[idx..idx + dim]);
+            let curr_p = path.last().unwrap();
+            let sample = self.step(curr_p, &zs_slice);
+            path.push(sample);
+        }
 
-    //     path
-    // }
+        path
+    }
 }
 
 #[cfg(test)]
@@ -255,12 +170,12 @@ mod tests {
         let mv_gbm =
             MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
 
-        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+        let mc_simulator: MonteCarloPathSimulator<Array2<_>> =
+            MonteCarloPathSimulator::new(nr_paths, nr_steps);
         let paths = mc_simulator.simulate_paths(42, mv_gbm);
         assert_eq!(paths.len(), nr_paths);
 
         let path_eval = PathEvaluator::new(&paths);
-
         let avg_price =
             path_eval.evaluate_average(|path| path.axis_iter(Axis(1)).last().map(|p| p.sum()));
         // assert!(avg_price.unwrap() > 0.0);

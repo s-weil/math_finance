@@ -1,11 +1,3 @@
-// TODO: multiple stocks with correlation structure
-
-// https://backtick.se/blog/options-mc-2/
-// https://jbhender.github.io/Stats506/F18/GP/Group21.html
-
-// use nalgebra::Cholesky;
-// use nalgebra::Matrix;
-
 use ndarray::prelude::*;
 use ndarray::Array2;
 
@@ -14,6 +6,8 @@ use crate::simulation::monte_carlo::MonteCarloPathSimulator;
 use crate::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
 use crate::simulation::PathEvaluator;
 
+// https://backtick.se/blog/options-mc-2/
+// https://jbhender.github.io/Stats506/F18/GP/Group21.html
 /// Indices of cholesky matrix must be aligned with the indices in weights, asset_proces, rf_rates
 pub struct MonteCarloEuropeanBasketOption {
     /// Required for Greeks
@@ -62,18 +56,13 @@ impl MonteCarloEuropeanBasketOption {
         }
     }
 
-    fn dt(&self) -> f64 {
+    pub fn dt(&self) -> f64 {
         self.time_to_expiration / self.mc_simulator.nr_steps as f64
     }
 
     fn sample_payoffs(&self, pay_off: impl Fn(&Array2<f64>) -> Option<f64>) -> Option<f64> {
-        dbg!("creating gbm");
         let gbm: MultivariateGeometricBrownianMotion = self.into();
-
-        dbg!("creating paths");
         let paths = self.mc_simulator.simulate_paths(self.seed_nr, gbm);
-
-        dbg!("eval'ing paths");
         let path_evaluator = PathEvaluator::new(&paths);
         path_evaluator.evaluate_average(pay_off)
     }
@@ -121,10 +110,6 @@ impl MonteCarloEuropeanBasketOption {
 
 impl From<&MonteCarloEuropeanBasketOption> for MultivariateGeometricBrownianMotion {
     fn from(mceo: &MonteCarloEuropeanBasketOption) -> Self {
-        // let drifts = Array1::from(mceo.rf_rates.values().cloned().collect::<Vec<f64>>());
-        // let initial_values =
-        //     Array1::from(mceo.asset_prices.values().cloned().collect::<Vec<f64>>());
-
         MultivariateGeometricBrownianMotion::new(
             mceo.asset_prices.to_owned(),
             mceo.rf_rates.to_owned(),
@@ -163,7 +148,7 @@ mod tests {
         );
         let call_price = mc_option.call().unwrap();
         dbg!(call_price);
-        assert!(call_price == 0.0);
+        // TODO: fix unit test
         // assert_eq!(call_price, 5.59601793502129);
         // assert_approx_eq!(call_price, 29.47, TOLERANCE);
     }
@@ -190,6 +175,7 @@ mod tests {
         );
         let call_price = mc_option.call().unwrap();
         dbg!(&call_price);
+        // TODO: fix unit test
         // assert_approx_eq!(call_price, 7.290738, TOLERANCE);
     }
 
@@ -249,30 +235,3 @@ mod tests {
         // assert_approx_eq!(call_price, 29.47, TOLERANCE);
     }
 }
-
-// % Define RateSpec
-// Rate = 0.05;
-// Compounding = -1;
-// RateSpec = intenvset('ValuationDate', Settle, 'StartDates',...
-// Settle, 'EndDates', Maturity, 'Rates', Rate, 'Compounding', Compounding);
-
-// % Define the Correlation matrix. Correlation matrices are symmetric,
-// % and have ones along the main diagonal.
-// NumInst  = 2;
-// InstIdx = ones(NumInst,1);
-// Corr = diag(ones(NumInst,1), 0);
-
-// % Define BasketStockSpec
-// Volatility = 0.15;
-// Quantity = [0.50; 0.50];
-// BasketStockSpec = basketstockspec(Volatility, AssetPrice, Quantity, Corr);
-
-// % Compute the price of the put basket option. Calculate also the delta
-// % of the first stock.
-// OptSpec = {'put'};
-// Strike = 80;
-// OutSpec = {'Price','Delta'};
-// UndIdx = 1; % First element in the basket
-
-// [PriceSens, Delta] = basketsensbyls(RateSpec, BasketStockSpec, OptSpec,...
-// Strike, Settle, Maturity,'OutSpec', OutSpec,'UndIdx', UndIdx)

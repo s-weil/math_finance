@@ -9,13 +9,13 @@ Mathematical finance in Rust
     - Analytic
     - Monte Carlo
         - GBM
-        [*] local vol
-        [*] stochastic local vol
+        [*] local volatility
+        [*] stochastic local volatility
 
-### Risk and Portfolio theo
+### Risk and Portfolio theory
 
     - risk figur
-    [*] Markovi
+    [*] Markovitz portofolio optimization
     [*] Black Litterman
     [*] Deep Hedging
 
@@ -33,11 +33,10 @@ Any contribution and help is highly welcome! Work needs to be done in general an
 - documentation, references, example implementations
   (and many more areas)
 
-## flamegraph
+## flamegraph and
 
 Run flamegraph for detecting hot paths.
-Running unit tests via workaround in:
-https://github.com/flamegraph-rs/flamegraph/issues/139
+Running unit tests via this [workaround](https://github.com/flamegraph-rs/flamegraph/issues/139)
 
 For example:
 

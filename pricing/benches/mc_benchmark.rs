@@ -2,10 +2,13 @@
 // https://bheisler.github.io/criterion.rs/book/getting_started.html
 
 extern crate pricing;
+use pricing::simulation::distributions::MultivariateNormalDistribution;
 use pricing::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
+use pricing::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
 use pricing::simulation::GeometricBrownianMotion;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use ndarray::{arr1, arr2, Array2};
 use rand_distr::StandardNormal;
 
 // criterion_group!{
@@ -15,8 +18,9 @@ use rand_distr::StandardNormal;
 // }
 criterion_group!(
     benches,
-    criterion_stock_price_simulation,
-    criterion_basket_stock_price_simulation
+    // criterion_stock_price_simulation,
+    // criterion_basket_stock_price_simulation,
+    criterion_multivariate_normal_distr
 );
 criterion_main!(benches);
 
@@ -89,9 +93,6 @@ fn simulate_paths_with_path_generator_gbm((nr_paths, nr_steps): (usize, usize)) 
     assert!(avg_price.is_some());
 }
 
-use ndarray::{arr1, arr2};
-use pricing::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
-
 pub fn criterion_basket_stock_price_simulation(c: &mut Criterion) {
     let mut group = c.benchmark_group("Basket stock price Monte Carlo simulation");
 
@@ -124,4 +125,41 @@ fn basket_stock_price_simulation((nr_paths, nr_steps): (usize, usize)) {
         //     .map(|p| p.iter().fold(0.0, |acc, x| acc + x))
     });
     assert!(avg_price.is_some());
+}
+
+pub fn criterion_multivariate_normal_distr(c: &mut Criterion) {
+    let mut group =
+        c.benchmark_group("Monte Carlo simulation for Multivariate Normal Distribution paths");
+
+    group.bench_function("modelled with array2", |b| {
+        b.iter(|| multivariate_normal_distr_array2(black_box((1_000, 300, 42))))
+    });
+
+    group.bench_function("modelled with vec<array1>", |b| {
+        b.iter(|| multivariate_normal_distr_vec_of_array1(black_box((1_000, 300, 42))))
+    });
+
+    group.finish()
+}
+
+fn multivariate_normal_distr_array2((nr_paths, nr_steps, seed): (usize, usize, u64)) {
+    let mu = arr1(&[0.1, 0.2, 0.3]);
+    let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
+    let mv_normal = MultivariateNormalDistribution::new(mu, cholesky_factor);
+
+    let mc_simulator: MonteCarloPathSimulator<Array2<_>> =
+        MonteCarloPathSimulator::new(nr_paths, nr_steps);
+    let paths = mc_simulator.simulate_paths(seed, mv_normal);
+    assert_eq!(paths.len(), nr_paths);
+}
+
+fn multivariate_normal_distr_vec_of_array1((nr_paths, nr_steps, seed): (usize, usize, u64)) {
+    let mu = arr1(&[0.1, 0.2, 0.3]);
+    let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
+    let mv_normal = MultivariateNormalDistribution::new(mu, cholesky_factor);
+
+    let mc_simulator: MonteCarloPathSimulator<Vec<_>> =
+        MonteCarloPathSimulator::new(nr_paths, nr_steps);
+    let paths = mc_simulator.simulate_paths(seed, mv_normal);
+    assert_eq!(paths.len(), nr_paths);
 }

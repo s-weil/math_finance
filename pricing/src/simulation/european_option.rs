@@ -1,15 +1,11 @@
-use std::collections::HashMap;
-
-use crate::common::models::{DerivativeParameter, ExerciseType, Greek};
+use crate::common::models::DerivativeParameter;
 use crate::simulation::gbm::GeometricBrownianMotion;
 use crate::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
 
-use super::greek_engine::Pricer;
-
 pub struct MonteCarloEuropeanOption {
-    option_params: DerivativeParameter,
-    mc_simulator: MonteCarloPathSimulator<Vec<f64>>,
-    seed_nr: u64,
+    pub option_params: DerivativeParameter,
+    pub mc_simulator: MonteCarloPathSimulator<Vec<f64>>,
+    pub seed_nr: u64,
 }
 
 impl MonteCarloEuropeanOption {
@@ -33,7 +29,7 @@ impl MonteCarloEuropeanOption {
         }
     }
 
-    fn dt(&self) -> f64 {
+    pub fn dt(&self) -> f64 {
         self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
     }
 
@@ -52,7 +48,7 @@ impl MonteCarloEuropeanOption {
         path_evaluator.evaluate_average(pay_off)
     }
 
-    fn discount_factor(&self, t: f64) -> f64 {
+    pub fn discount_factor(&self, t: f64) -> f64 {
         (-t * self.option_params.rfr).exp()
     }
 
@@ -66,34 +62,6 @@ impl MonteCarloEuropeanOption {
     pub fn put(&self) -> Option<f64> {
         let disc_factor = self.discount_factor(self.option_params.time_to_expiration);
         self.sample_payoffs(|path| self.put_payoff(self.option_params.strike, disc_factor, path))
-    }
-
-    /// The greeks of the (put / call) option (optimized with respect to TODO).
-    pub fn greeks(
-        &self,
-        _exercise_type: &ExerciseType,
-        _greeks: Vec<Greek>,
-    ) -> HashMap<Greek, Option<f64>> {
-        // let standard_normal_paths = self
-        //     .mc_simulator
-        //     .simulate_paths(self.seed_nr, StandardNormal);
-
-        // let path_evaluator = PathEvaluator::new(&standard_normal_paths);
-
-        // // let pay_off = match exercise_type {
-        // //     ExerciseType::Put => |path: &Path<f64>| self.put_payoff(self.option_params.strike, path),
-        // //     ExerciseType::Call => |path: &Path<f64>| self.call_payoff(self.option_params.strike, path),
-        // // };
-
-        // let stock_gbm: GeometricBrownianMotion = self.into();
-
-        // let _put_tv = path_evaluator.evaluate(|standard_normal_path| {
-        //     let stock_prices =
-        //         stock_gbm.generate_path(self.option_params.asset_price, standard_normal_path);
-        //     self.put_payoff(self.option_params.strike, 0.0, &stock_prices)
-        // });
-
-        todo!("implement");
     }
 }
 
@@ -110,26 +78,6 @@ impl From<&MonteCarloEuropeanOption> for GeometricBrownianMotion {
     }
 }
 
-// pub struct MonteCarloEuropeanputOption {
-//     base: MonteCarloEuropeanOption
-// }
-
-// impl Pricer<f64, &[f64], Vec<f64>> for MonteCarloEuropeanputOption {
-//     fn random_generator(&self) -> Vec<Vec<f64>> {
-//         self.base.mc_simulator.simulate_paths(self.base.seed_nr, rand_distr::StandardNormal)
-//     }
-
-//     fn eval(&self, paths: &Vec<Vec<f64>>) -> Option<f64> {
-//         let path_evaluator = PathEvaluator::new(&paths);
-//         let disc_factor = self.base.discount_factor(self.base.option_params.time_to_expiration);
-//         let pay_off = |path| self.base.put_payoff(self.base.option_params.strike, disc_factor, path);
-//         path_evaluator.evaluate_average(pay_off)
-//     }
-// }
-
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,7 +85,7 @@ mod tests {
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     /// compare with analytic solutions from https://goodcalculators.com/black-scholes-calculator/
-    const TOLERANCE: f64 = 1.5;
+    const TOLERANCE: f64 = 0.05;
 
     #[test]
     fn european_call() {
@@ -173,7 +121,7 @@ mod tests {
         let mc_option =
             MonteCarloEuropeanOption::new(102.0, 100.0, 0.5, 0.02, 0.2, 1_000_000, 100, 111111);
         let call_price = mc_option.call().unwrap();
-        assert_eq!(call_price, 7.285406206467689); // black scholes ref: 7.288151
+        assert_eq!(call_price, 7.297463800819357); // black scholes ref: 7.288151
         assert_approx_eq!(call_price, 7.290738, TOLERANCE); // monte carlo ref: 7.290738
     }
 }
