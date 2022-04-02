@@ -19,8 +19,8 @@ use rand_distr::StandardNormal;
 criterion_group!(
     benches,
     // criterion_stock_price_simulation,
-    // criterion_basket_stock_price_simulation,
-    criterion_multivariate_normal_distr
+    criterion_basket_stock_price_simulation,
+    // criterion_multivariate_normal_distr
 );
 criterion_main!(benches);
 
@@ -97,7 +97,7 @@ pub fn criterion_basket_stock_price_simulation(c: &mut Criterion) {
     let mut group = c.benchmark_group("Basket stock price Monte Carlo simulation");
 
     group.bench_function("direct multivariate gbm sampler", |b| {
-        b.iter(|| basket_stock_price_simulation(black_box((10_000, 200))))
+        b.iter(|| basket_stock_price_simulation(black_box((5_000, 200))))
     });
 
     group.finish()
@@ -133,15 +133,15 @@ pub fn criterion_multivariate_normal_distr(c: &mut Criterion) {
         c.benchmark_group("Monte Carlo simulation for Multivariate Normal Distribution paths");
 
     group.bench_function("modelled with array2", |b| {
-        b.iter(|| multivariate_normal_distr_array2(black_box((1_000, 300, 42))))
+        b.iter(|| multivariate_normal_distr_array2(black_box((5_000, 300, 42))))
     });
 
-    // group.bench_function("modelled with vec<array1>", |b| {
-    //     b.iter(|| multivariate_normal_distr_vec_of_array1(black_box((1_000, 300, 42))))
-    // });
+    group.bench_function("modelled with vec<array1>", |b| {
+        b.iter(|| multivariate_normal_distr_vec_of_array1(black_box((5_000, 300, 42))))
+    });
 
     group.bench_function("modelled with slice_path", |b| {
-        b.iter(|| multivariate_normal_distr_vec_of_array1(black_box((1_000, 300, 42))))
+        b.iter(|| multivariate_normal_distr_vec_of_array1(black_box((5_000, 300, 42))))
     });
 
     group.finish()

@@ -83,7 +83,6 @@ impl PathGenerator<Array2<f64>> for MultivariateNormalDistribution {
         for mut col in sample_matrix.columns_mut() {
             let rdn = self.transform_sample(&col.to_owned());
             col.assign(&rdn);
-            // sample_matrix.slice_mut(s![.., idx]).assign(&col);
         }
 
         sample_matrix

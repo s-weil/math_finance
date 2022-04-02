@@ -54,6 +54,11 @@ impl MultivariateGeometricBrownianMotion {
         st + st * &d_st_s0
     }
 
+    fn step2(&self, st: &Array1<f64>, std_normal_vec: &Array1<f64>) -> Array1<f64> {
+        let d_st_s0: Array1<f64> = self.dt * &self.drifts + std_normal_vec;
+        st + st * &d_st_s0
+    }
+
     pub fn generate_path(&self, standard_normals: &[&[f64]]) -> Vec<Array1<f64>> {
         let mut path = Vec::with_capacity(standard_normals.len() + 1);
 
@@ -67,6 +72,28 @@ impl MultivariateGeometricBrownianMotion {
 
         path
     }
+
+    pub fn generate_path_linalg(
+        &self,
+        sample_matrix: &mut Array2<f64>,
+        nr_samples: usize,
+    ) -> Array2<f64> {
+        let mut multivariate_normals = self.dt.sqrt() * sample_matrix.dot(&self.cholesky_factor);
+
+        let dim = self.dim();
+        for idx in 1..nr_samples {
+            let prev_slice = multivariate_normals.slice(s![idx - 1, ..]);
+            let curr_slice = multivariate_normals.slice(s![idx, ..]);
+            let transformed = self.step2(&prev_slice.to_owned(), &curr_slice.to_owned());
+            // sample_matrix.slice_mut(s![idx, ..]).assign(&transformed);
+            // curr_slice(&transformed);
+            for i in 0..dim {
+                multivariate_normals[[idx, i]] = transformed[i];
+            }
+        }
+
+        multivariate_normals
+    }
 }
 
 impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
@@ -78,6 +105,36 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
         self.step(&self.initial_values, &Array1::from(standard_normals))
     }
 }
+
+// impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
+//     #[inline]
+//     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
+//         let dim = self.dim();
+//         let distr = StandardNormal;
+
+//         let mut sample_matrix = Array2::from_shape_vec(
+//             (nr_samples, dim),
+//             rn_generator
+//                 .sample_iter(distr)
+//                 .take(nr_samples * dim)
+//                 .collect(),
+//         )
+//         .unwrap(); // TODO deal with error
+
+//         for idx in 1..nr_samples {
+//             let prev_slice = sample_matrix.slice(s![idx - 1, ..]);
+//             let curr_slice = sample_matrix.slice(s![idx, ..]);
+//             let transformed = self.step(&prev_slice.to_owned(), &curr_slice.to_owned());
+//             // sample_matrix.slice_mut(s![idx, ..]).assign(&transformed);
+//             // curr_slice(&transformed);
+//             for i in 0..dim {
+//                 sample_matrix[[idx, i]] = transformed[i];
+//             }
+//         }
+
+//         sample_matrix
+//     }
+// }
 
 impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
     #[inline]
@@ -94,15 +151,19 @@ impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
         )
         .unwrap(); // TODO deal with error
 
+        // self.generate_path_linalg(&mut sample_matrix, nr_samples)
+
+        let mut multivariate_normals = self.dt.sqrt() * sample_matrix.dot(&self.cholesky_factor);
+
         for idx in 1..nr_samples {
-            let curr_slice = sample_matrix.slice(s![idx, ..]);
-            let prev_slice = sample_matrix.slice(s![idx - 1, ..]);
-            let transformed = self.step(&prev_slice.to_owned(), &curr_slice.to_owned());
-            sample_matrix.slice(s![idx, ..]).assign(&transformed);
+            let prev_slice = multivariate_normals.slice(s![idx - 1, ..]);
+            let curr_slice = multivariate_normals.slice(s![idx, ..]);
+            let transformed = self.step2(&prev_slice.to_owned(), &curr_slice.to_owned());
+            // sample_matrix.slice_mut(s![idx, ..]).assign(&transformed);
             // curr_slice(&transformed);
-            // for i in 0..dim {
-            //     sample_matrix[[idx, i]] = transformed[i];
-            // }
+            for i in 0..dim {
+                multivariate_normals[[idx, i]] = transformed[i];
+            }
         }
 
         sample_matrix
