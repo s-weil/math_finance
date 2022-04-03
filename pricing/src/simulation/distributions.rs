@@ -55,6 +55,16 @@ impl MultivariateNormalDistribution {
     pub(crate) fn transform_sample(&self, standard_normals: &Array1<f64>) -> Array1<f64> {
         &self.mu + self.cholesky_factor.dot(standard_normals)
     }
+
+    pub(crate) fn transform_path(&self, standard_normals_matrix: &Array2<f64>) -> Array2<f64> {
+        let mut corr_standard_normals_path = self.cholesky_factor.dot(standard_normals_matrix);
+
+        for mut col in corr_standard_normals_path.columns_mut() {
+            let rdn = &self.mu + &col;
+            col.assign(&rdn);
+        }
+        corr_standard_normals_path
+    }
 }
 
 impl Distribution<Array1<f64>> for MultivariateNormalDistribution {
@@ -71,7 +81,7 @@ impl PathGenerator<Array2<f64>> for MultivariateNormalDistribution {
         let dim = self.dim();
         let distr = StandardNormal;
 
-        let mut sample_matrix = Array2::from_shape_vec(
+        let sample_matrix = Array2::from_shape_vec(
             (dim, nr_samples),
             rn_generator
                 .sample_iter(distr)
@@ -80,12 +90,7 @@ impl PathGenerator<Array2<f64>> for MultivariateNormalDistribution {
         )
         .unwrap(); // TODO deal with error
 
-        for mut col in sample_matrix.columns_mut() {
-            let rdn = self.transform_sample(&col.to_owned());
-            col.assign(&rdn);
-        }
-
-        sample_matrix
+        self.transform_path(&sample_matrix)
     }
 }
 
