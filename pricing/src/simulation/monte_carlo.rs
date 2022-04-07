@@ -1,7 +1,7 @@
 use rand::Rng;
 use std::marker::PhantomData;
 
-pub trait SeedRng: rand::SeedableRng + rand::RngCore /*+ rand::Rng */ {}
+pub trait SeedRng: rand::SeedableRng + rand::RngCore {}
 
 pub trait PathGenerator<Path> {
     fn sample_path<SRng>(&self, rn_generator: &mut SRng, nr_samples: usize) -> Path
@@ -10,9 +10,9 @@ pub trait PathGenerator<Path> {
 }
 
 // #[cfg(feature = "Hc128Rng")]
-// impl SeedRng for rand_hc::Hc128Rng {}
+impl SeedRng for rand_hc::Hc128Rng {}
 // #[cfg(feature = "Isaac64Rng")]
-// impl SeedRng for rand_isaac::Isaac64Rng {}
+impl SeedRng for rand_isaac::Isaac64Rng {}
 
 /// Implementations for seedable_rng are for instance:
 /// rand_hc::Hc128Rng
@@ -24,7 +24,6 @@ where
     SRng: SeedRng,
 {
     path_generator: PathGen,
-    // rng: SRng,
     seed_nr: Option<u64>,
     _phantom_path: PhantomData<Path>,
     _phantom_rng: PhantomData<SRng>,
@@ -138,16 +137,12 @@ mod tests {
 
     use super::*;
     use crate::simulation::gbm::GeometricBrownianMotion;
-    use rand::SeedableRng;
     use rand_distr::{Normal, StandardNormal};
 
     use assert_approx_eq::assert_approx_eq;
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     const TOLERANCE: f64 = 1e-1;
-
-    impl SeedRng for rand_hc::Hc128Rng {}
-    impl SeedRng for rand_isaac::Isaac64Rng {}
 
     #[test]
     fn normal_path_simulation() {

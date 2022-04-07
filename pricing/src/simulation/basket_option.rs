@@ -141,7 +141,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_approx_eq::assert_approx_eq;
+    
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     /// compare with analytic solutions from https://goodcalculators.com/black-scholes-calculator/
@@ -228,7 +228,7 @@ mod tests {
     /// Example from https://ch.mathworks.com/help/fininst/basketsensbyls.html
     #[test]
     fn european_basket_put_reference() {
-        let corr = arr2(&[[1.0, 0.15], [0.15, 1.0]]);
+        let _corr = arr2(&[[1.0, 0.15], [0.15, 1.0]]);
 
         // todo: check cholesky of corr rather than cov?
         let cholesky_factor = arr2(&[[1.0, 0.15], [0.0, 1.0 - 0.15_f64.powi(2)]]);
