@@ -1,5 +1,6 @@
 use ndarray::arr1;
 use ndarray::prelude::*;
+use ndarray_rand::RandomExt;
 use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
 
@@ -74,20 +75,29 @@ impl MultivariateGeometricBrownianMotion {
 
     pub fn generate_path_linalg(
         &self,
-        sample_matrix: &mut Array2<f64>,
+        sample_matrix: &Array2<f64>,
         nr_samples: usize,
     ) -> Array2<f64> {
-        let mut multivariate_normals = self.dt.sqrt() * sample_matrix.dot(&self.cholesky_factor);
+        let mut multivariate_normals = self.dt.sqrt() * self.cholesky_factor.dot(sample_matrix);
+
+        //TODO: possible to use multivariate_normals.axis_windows(Axis(0), 2)?
 
         let dim = self.dim();
         for idx in 1..nr_samples {
-            let prev_slice = multivariate_normals.slice(s![idx - 1, ..]);
-            let curr_slice = multivariate_normals.slice(s![idx, ..]);
-            let transformed = self.step2(&prev_slice.to_owned(), &curr_slice.to_owned());
-            // sample_matrix.slice_mut(s![idx, ..]).assign(&transformed);
-            // curr_slice(&transformed);
+            // TODO: integrate initial values
+            // let st =
+            //     if idx == 0 {
+            //         self.initial_values.axis_iter(axis)
+            //     } else {
+            //         multivariate_normals.slice(s![.., idx - 1])
+            //     }
+            let st = multivariate_normals.slice(s![.., idx - 1]);
+            let curr_slice = multivariate_normals.slice(s![.., idx]);
+            let d_st_s0: Array1<f64> = self.dt * &self.drifts + &curr_slice;
+            let stn = &st + &st * &d_st_s0;
+
             for i in 0..dim {
-                multivariate_normals[[idx, i]] = transformed[i];
+                multivariate_normals[[i, idx]] = stn[i];
             }
         }
 
@@ -142,33 +152,10 @@ impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
         R: Rng + ?Sized,
     {
         let dim = self.dim();
-        let distr = StandardNormal;
+        let distr = ndarray_rand::rand_distr::StandardNormal;
+        let sample_matrix = ndarray::Array::random_using((dim, nr_samples), distr, rn_generator);
 
-        let sample_matrix = Array2::from_shape_vec(
-            (nr_samples, dim),
-            rn_generator
-                .sample_iter(distr)
-                .take(nr_samples * dim)
-                .collect(),
-        )
-        .unwrap(); // TODO deal with error
-
-        // self.generate_path_linalg(&mut sample_matrix, nr_samples)
-
-        let mut multivariate_normals = self.dt.sqrt() * sample_matrix.dot(&self.cholesky_factor);
-
-        for idx in 1..nr_samples {
-            let prev_slice = multivariate_normals.slice(s![idx - 1, ..]);
-            let curr_slice = multivariate_normals.slice(s![idx, ..]);
-            let transformed = self.step2(&prev_slice.to_owned(), &curr_slice.to_owned());
-            // sample_matrix.slice_mut(s![idx, ..]).assign(&transformed);
-            // curr_slice(&transformed);
-            for i in 0..dim {
-                multivariate_normals[[idx, i]] = transformed[i];
-            }
-        }
-
-        sample_matrix
+        self.generate_path_linalg(&sample_matrix, nr_samples)
     }
 }
 
@@ -226,11 +213,11 @@ mod tests {
 
     #[test]
     fn basket_stock_price_simulation() {
-        let nr_paths = 10_000;
+        let nr_paths = 5_000;
         let nr_steps = 100;
 
         let initial_values = arr1(&[110.0, 120.0, 130.0]);
-        let drifts = arr1(&[0.1, 0.2, 0.3]);
+        let drifts = arr1(&[0.01, 0.02, 0.03]);
         let cholesky_factor = arr2(&[[1.0, 0.05, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
         let dt = 1.0;
 
@@ -242,11 +229,12 @@ mod tests {
 
         let paths = mc_simulator.simulate_paths(nr_paths, nr_steps);
         assert_eq!(paths.len(), nr_paths);
+        assert_eq!(&paths[0].shape(), &[3, nr_steps]);
 
         let path_eval = PathEvaluator::new(&paths);
-        let avg_price =
-            path_eval.evaluate_average(|path| path.axis_iter(Axis(1)).last().map(|p| p.sum()));
+        let avg_price = path_eval
+            .evaluate_average(|path| path.axis_iter(Axis(0)).last().map(|p| p.sum() / 3.0));
         // assert!(avg_price.unwrap() > 0.0);
-        dbg!(avg_price);
+        dbg!(avg_price.unwrap() / nr_paths as f64);
     }
 }
