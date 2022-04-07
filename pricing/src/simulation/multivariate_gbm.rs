@@ -2,7 +2,6 @@ use ndarray::arr1;
 use ndarray::prelude::*;
 use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
-use rand_hc::Hc128Rng;
 
 use crate::simulation::monte_carlo::PathGenerator;
 
@@ -138,11 +137,14 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
 
 impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
     #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
+    fn sample_path<R>(&self, rn_generator: &mut R, nr_samples: usize) -> Array2<f64>
+    where
+        R: Rng + ?Sized,
+    {
         let dim = self.dim();
         let distr = StandardNormal;
 
-        let mut sample_matrix = Array2::from_shape_vec(
+        let sample_matrix = Array2::from_shape_vec(
             (nr_samples, dim),
             rn_generator
                 .sample_iter(distr)
@@ -173,7 +175,10 @@ impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
 // TODO: still needed?
 impl PathGenerator<Vec<Array1<f64>>> for MultivariateGeometricBrownianMotion {
     #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+    fn sample_path<R>(&self, rn_generator: &mut R, nr_samples: usize) -> Vec<Array1<f64>>
+    where
+        R: Rng,
+    {
         let dim = self.dim();
 
         let mut path = Vec::with_capacity(nr_samples + 1);

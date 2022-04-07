@@ -1,9 +1,10 @@
 use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
-use rand_hc::Hc128Rng;
 
 use crate::simulation::greek_engine::Dynamics;
 use crate::simulation::monte_carlo::PathGenerator;
+
+use super::monte_carlo::SeedRng;
 
 /// Model params for the SDE
 /// '''math
@@ -81,11 +82,11 @@ impl Distribution<f64> for GeometricBrownianMotion {
 
 impl PathGenerator<Vec<f64>> for GeometricBrownianMotion {
     #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
-        let distr = StandardNormal;
-        let mut standard_normals: Vec<f64> =
-            rn_generator.sample_iter(distr).take(nr_samples).collect();
-
+    fn sample_path<SRng>(&self, rn_generator: &mut SRng, nr_samples: usize) -> Vec<f64>
+    where
+        SRng: SeedRng,
+    {
+        let mut standard_normals = StandardNormal.sample_path(rn_generator, nr_samples);
         self.generate_in_place(&mut standard_normals);
         standard_normals
     }

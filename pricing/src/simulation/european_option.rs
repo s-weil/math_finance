@@ -1,14 +1,27 @@
+use std::marker::PhantomData;
+
 use crate::common::models::DerivativeParameter;
 use crate::simulation::gbm::GeometricBrownianMotion;
 use crate::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
 
-pub struct MonteCarloEuropeanOption {
+use super::monte_carlo::SeedRng;
+
+pub struct MonteCarloEuropeanOption<SRng>
+where
+    SRng: SeedRng,
+{
     pub option_params: DerivativeParameter,
-    pub mc_simulator: MonteCarloPathSimulator<Vec<f64>>,
+    // pub mc_simulator: MonteCarloPathSimulator<rand_distr::StandardNormal, SeedRng, Vec<f64>>,
     pub seed_nr: u64,
+    pub nr_paths: usize,
+    pub nr_steps: usize,
+    _phantom_rng: PhantomData<SRng>,
 }
 
-impl MonteCarloEuropeanOption {
+impl<SRng> MonteCarloEuropeanOption<SRng>
+where
+    SRng: SeedRng,
+{
     pub fn new(
         asset_price: f64,
         strike: f64,
@@ -21,16 +34,19 @@ impl MonteCarloEuropeanOption {
     ) -> Self {
         let option_params =
             DerivativeParameter::new(asset_price, strike, time_to_expiration, rfr, vola);
-        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+        // let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
         Self {
             option_params,
-            mc_simulator,
+            // mc_simulator,
+            nr_paths,
+            nr_steps,
             seed_nr,
+            _phantom_rng: PhantomData::<SRng>,
         }
     }
 
     pub fn dt(&self) -> f64 {
-        self.option_params.time_to_expiration / self.mc_simulator.nr_steps as f64
+        self.option_params.time_to_expiration / self.nr_steps as f64
     }
 
     fn call_payoff(&self, strike: f64, disc_factor: f64, path: &[f64]) -> Option<f64> {
@@ -43,7 +59,9 @@ impl MonteCarloEuropeanOption {
 
     pub fn sample_payoffs(&self, pay_off: impl Fn(&Vec<f64>) -> Option<f64>) -> Option<f64> {
         let stock_gbm: GeometricBrownianMotion = self.into();
-        let paths = self.mc_simulator.simulate_paths(self.seed_nr, stock_gbm);
+        let mc_simulator: MonteCarloPathSimulator<_, SRng, _> =
+            MonteCarloPathSimulator::new(stock_gbm, Some(self.seed_nr));
+        let paths = mc_simulator.simulate_paths(self.nr_paths, self.nr_steps);
         let path_evaluator = PathEvaluator::new(&paths);
         path_evaluator.evaluate_average(pay_off)
     }
@@ -65,8 +83,11 @@ impl MonteCarloEuropeanOption {
     }
 }
 
-impl From<&MonteCarloEuropeanOption> for GeometricBrownianMotion {
-    fn from(mceo: &MonteCarloEuropeanOption) -> Self {
+impl<R> From<&MonteCarloEuropeanOption<R>> for GeometricBrownianMotion
+where
+    R: SeedRng,
+{
+    fn from(mceo: &MonteCarloEuropeanOption<R>) -> Self {
         // under the risk neutral measure we have mu = r
         let drift = mceo.option_params.rfr;
         GeometricBrownianMotion::new(

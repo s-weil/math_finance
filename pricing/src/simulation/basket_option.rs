@@ -1,15 +1,20 @@
+use std::marker::PhantomData;
+
 use ndarray::prelude::*;
 use ndarray::Array2;
 
-// use crate::common::models::Underlying;
 use crate::simulation::monte_carlo::MonteCarloPathSimulator;
+use crate::simulation::monte_carlo::SeedRng;
 use crate::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
 use crate::simulation::PathEvaluator;
 
 // https://backtick.se/blog/options-mc-2/
 // https://jbhender.github.io/Stats506/F18/GP/Group21.html
 /// Indices of cholesky matrix must be aligned with the indices in weights, asset_proces, rf_rates
-pub struct MonteCarloEuropeanBasketOption {
+pub struct MonteCarloEuropeanBasketOption<SRng>
+where
+    SRng: SeedRng,
+{
     /// Required for Greeks
     // underlying_map: HashMap<Underlying, usize>,
     weights: Array1<f64>,
@@ -22,11 +27,17 @@ pub struct MonteCarloEuropeanBasketOption {
     /// (T - t) in years, where T is the time of the option's expiration and t is the current time
     time_to_expiration: f64,
 
-    mc_simulator: MonteCarloPathSimulator<Array2<f64>>,
+    // mc_simulator: MonteCarloPathSimulator<PathGen, Rng, Array2<f64>>,
     seed_nr: u64,
+    nr_paths: usize,
+    nr_steps: usize,
+    _phantom_rng: PhantomData<SRng>,
 }
 
-impl MonteCarloEuropeanBasketOption {
+impl<SRng> MonteCarloEuropeanBasketOption<SRng>
+where
+    SRng: SeedRng,
+{
     pub fn new(
         // underlying_map: HashMap<Underlying, usize>,
         weights: Array1<f64>,
@@ -42,27 +53,32 @@ impl MonteCarloEuropeanBasketOption {
     ) -> Self {
         let weight_sum = weights.iter().fold(0.0, |acc, c| acc + c);
         assert_eq!(weight_sum, 1.0);
-        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+        // let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
         Self {
             // underlying_map,
-            mc_simulator,
+            // mc_simulator,
             time_to_expiration,
             strike,
             cholesky_factor,
             rf_rates,
             asset_prices,
             weights,
+            nr_paths,
+            nr_steps,
             seed_nr,
+            _phantom_rng: PhantomData::<SRng>,
         }
     }
 
     pub fn dt(&self) -> f64 {
-        self.time_to_expiration / self.mc_simulator.nr_steps as f64
+        self.time_to_expiration / self.nr_steps as f64
     }
 
     fn sample_payoffs(&self, pay_off: impl Fn(&Array2<f64>) -> Option<f64>) -> Option<f64> {
         let gbm: MultivariateGeometricBrownianMotion = self.into();
-        let paths = self.mc_simulator.simulate_paths(self.seed_nr, gbm);
+        let mc_simulator: MonteCarloPathSimulator<_, SRng, _> =
+            MonteCarloPathSimulator::new(gbm, Some(self.seed_nr));
+        let paths = mc_simulator.simulate_paths(self.nr_paths, self.nr_steps);
         let path_evaluator = PathEvaluator::new(&paths);
         path_evaluator.evaluate_average(pay_off)
     }
@@ -108,8 +124,11 @@ impl MonteCarloEuropeanBasketOption {
     }
 }
 
-impl From<&MonteCarloEuropeanBasketOption> for MultivariateGeometricBrownianMotion {
-    fn from(mceo: &MonteCarloEuropeanBasketOption) -> Self {
+impl<R> From<&MonteCarloEuropeanBasketOption<R>> for MultivariateGeometricBrownianMotion
+where
+    R: SeedRng,
+{
+    fn from(mceo: &MonteCarloEuropeanBasketOption<R>) -> Self {
         MultivariateGeometricBrownianMotion::new(
             mceo.asset_prices.to_owned(),
             mceo.rf_rates.to_owned(),

@@ -1,37 +1,61 @@
-use rand::SeedableRng;
-use rand_hc::Hc128Rng;
+use rand::Rng;
 use std::marker::PhantomData;
 
+pub trait SeedRng: rand::SeedableRng + rand::RngCore /*+ rand::Rng */ {}
+
 pub trait PathGenerator<Path> {
-    fn rn_generator(&self, seed_nr: u64) -> Hc128Rng {
-        rand_hc::Hc128Rng::seed_from_u64(seed_nr)
-    }
-
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Path;
+    fn sample_path<SRng>(&self, rn_generator: &mut SRng, nr_samples: usize) -> Path
+    where
+        SRng: SeedRng;
 }
 
-#[derive(Debug, Clone)]
-pub struct MonteCarloPathSimulator<Path> {
-    pub nr_paths: usize,
-    pub nr_steps: usize,
-    _phantom: PhantomData<Path>,
+/// Implementations for seedable_rng are for instance:
+/// rand_hc::Hc128Rng
+/// rand_isaac::Isaac64Rng
+#[derive(Debug)]
+pub struct MonteCarloPathSimulator<PathGen, SRng, Path>
+where
+    PathGen: PathGenerator<Path>,
+    SRng: SeedRng,
+{
+    path_generator: PathGen,
+    // rng: SRng,
+    seed_nr: Option<u64>,
+    _phantom_path: PhantomData<Path>,
+    _phantom_rng: PhantomData<SRng>,
 }
 
-impl<Path> MonteCarloPathSimulator<Path> {
-    pub fn new(nr_paths: usize, nr_steps: usize) -> Self {
+impl<PathGen, SRng, Path> MonteCarloPathSimulator<PathGen, SRng, Path>
+where
+    PathGen: PathGenerator<Path>,
+    SRng: SeedRng,
+{
+    pub fn new(path_generator: PathGen, seed_nr: Option<u64>) -> Self {
         Self {
-            nr_paths,
-            nr_steps,
-            _phantom: PhantomData::<Path>,
+            path_generator,
+            seed_nr,
+            _phantom_path: PhantomData::<Path>,
+            _phantom_rng: PhantomData::<SRng>,
         }
     }
 
-    pub fn simulate_paths(&self, seed_nr: u64, sampler: impl PathGenerator<Path>) -> Vec<Path> {
-        let mut paths = Vec::with_capacity(self.nr_paths);
-        let mut generator = sampler.rn_generator(seed_nr);
+    fn rn_generator(&self) -> SRng {
+        match self.seed_nr {
+            Some(seed_nr) => SRng::seed_from_u64(seed_nr),
+            None => {
+                let random_seed =
+                    rand::thread_rng().sample(rand_distr::Uniform::new(0u64, 100_000));
+                SRng::seed_from_u64(random_seed)
+            }
+        }
+    }
 
-        for _ in 0..self.nr_paths {
-            let path = sampler.sample_path(&mut generator, self.nr_steps);
+    pub fn simulate_paths(&self, nr_paths: usize, nr_steps: usize) -> Vec<Path> {
+        let mut paths = Vec::with_capacity(nr_paths);
+        let mut generator = self.rn_generator();
+
+        for _ in 0..nr_paths {
+            let path = self.path_generator.sample_path(&mut generator, nr_steps);
             paths.push(path);
         }
         paths
@@ -39,15 +63,15 @@ impl<Path> MonteCarloPathSimulator<Path> {
 
     pub fn simulate_paths_with(
         &self,
-        seed_nr: u64,
-        sampler: impl PathGenerator<Path>,
+        nr_paths: usize,
+        nr_steps: usize,
         path_fn: impl Fn(&Path) -> Path,
     ) -> Vec<Path> {
-        let mut paths = Vec::with_capacity(self.nr_paths);
-        let mut generator = sampler.rn_generator(seed_nr);
+        let mut paths = Vec::with_capacity(nr_paths);
+        let mut generator = self.rn_generator();
 
-        for _ in 0..self.nr_paths {
-            let path = sampler.sample_path(&mut generator, self.nr_steps);
+        for _ in 0..nr_paths {
+            let path = self.path_generator.sample_path(&mut generator, nr_steps);
             let v = path_fn(&path);
             paths.push(v);
         }
@@ -56,15 +80,15 @@ impl<Path> MonteCarloPathSimulator<Path> {
 
     pub fn simulate_paths_apply_in_place(
         &self,
-        seed_nr: u64,
-        sampler: impl PathGenerator<Path>,
+        nr_paths: usize,
+        nr_steps: usize,
         apply_in_place_fn: impl Fn(&mut Path),
     ) -> Vec<Path> {
-        let mut paths = Vec::with_capacity(self.nr_paths);
-        let mut generator = sampler.rn_generator(seed_nr);
+        let mut paths = Vec::with_capacity(nr_paths);
+        let mut generator = self.rn_generator();
 
-        for _ in 0..self.nr_paths {
-            let mut path = sampler.sample_path(&mut generator, self.nr_steps);
+        for _ in 0..nr_paths {
+            let mut path = self.path_generator.sample_path(&mut generator, nr_steps);
             apply_in_place_fn(&mut path);
             paths.push(path);
         }
@@ -109,6 +133,7 @@ mod tests {
 
     use super::*;
     use crate::simulation::gbm::GeometricBrownianMotion;
+    use rand::SeedableRng;
     use rand_distr::{Normal, StandardNormal};
 
     use assert_approx_eq::assert_approx_eq;
@@ -118,11 +143,16 @@ mod tests {
 
     #[test]
     fn normal_path_simulation() {
-        let sampler = Normal::new(0.5, 1.0).unwrap();
-        let mc_simulator = MonteCarloPathSimulator::new(100_000, 100);
+        let sampler: Normal<f64> = Normal::new(0.5, 1.0).unwrap();
+
+        // <_, <rand_hc::Hc128Rng as SeedableRng>, _>
+        let rng = rand_hc::Hc128Rng::seed_from_u64(32);
+        let test = <rand_hc::Hc128Rng as SeedRng>;
+        let mc_simulator: MonteCarloPathSimulator<Normal<f64>, rand_hc::Hc128Rng, Vec<f64>> =
+            MonteCarloPathSimulator::new(sampler, Some(42));
 
         let paths_slice: Vec<Vec<f64>> = mc_simulator
-            .simulate_paths(42, sampler)
+            .simulate_paths(100_000, 100)
             .iter()
             .map(|path| vec![path.iter().fold(0.0, |acc, z| acc + z)])
             .collect();

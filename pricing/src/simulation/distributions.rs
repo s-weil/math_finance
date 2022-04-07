@@ -1,19 +1,32 @@
-use ndarray::{arr1, Array1, Array2};
-use rand::Rng;
-use rand_distr::{Distribution, Normal, StandardNormal};
-use rand_hc::Hc128Rng;
-
 use crate::simulation::monte_carlo::PathGenerator;
 
-impl PathGenerator<Vec<f64>> for Normal<f64> {
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
-        rn_generator.sample_iter(*self).take(nr_samples).collect()
+use ndarray::{arr1, Array1, Array2};
+use ndarray_rand::RandomExt;
+use rand::Rng;
+use rand_distr::{Distribution, StandardNormal};
+
+use super::monte_carlo::SeedRng;
+
+fn sample_vec_path<R, D>(rn_generator: &mut R, distr: D, nr_samples: usize) -> Vec<f64>
+where
+    R: SeedRng,
+    D: Distribution<f64>,
+{
+    rn_generator.sample_iter(distr).take(nr_samples).collect()
+}
+
+impl PathGenerator<Vec<f64>> for rand_distr::StandardNormal {
+    fn sample_path<R>(&self, rn_generator: &mut R, nr_samples: usize) -> Vec<f64>
+    where
+        R: SeedRng,
+    {
+        sample_vec_path(rn_generator, self, nr_samples)
     }
 }
 
-impl PathGenerator<Vec<f64>> for StandardNormal {
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<f64> {
-        rn_generator.sample_iter(*self).take(nr_samples).collect()
+impl PathGenerator<Vec<f64>> for rand_distr::Normal<f64> {
+    fn sample_path<SRng: SeedRng>(&self, rn_generator: &mut SRng, nr_samples: usize) -> Vec<f64> {
+        sample_vec_path(rn_generator, self, nr_samples)
     }
 }
 
@@ -75,20 +88,25 @@ impl Distribution<Array1<f64>> for MultivariateNormalDistribution {
     }
 }
 
+// #[cfg(feature = "rand_isaac")]
 impl PathGenerator<Array2<f64>> for MultivariateNormalDistribution {
     #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
+    fn sample_path<SRng: SeedRng>(
+        &self,
+        rn_generator: &mut SRng,
+        nr_samples: usize,
+    ) -> Array2<f64> {
         let dim = self.dim();
-        let distr = StandardNormal;
-
-        let sample_matrix = Array2::from_shape_vec(
-            (dim, nr_samples),
-            rn_generator
-                .sample_iter(distr)
-                .take(nr_samples * dim)
-                .collect(),
-        )
-        .unwrap(); // TODO deal with error
+        let distr = ndarray_rand::rand_distr::StandardNormal;
+        let sample_matrix = ndarray::Array::random_using((dim, nr_samples), distr, rn_generator);
+        // let sample_matrix = Array2::from_shape_vec(
+        //     (dim, nr_samples),
+        //     rn_generator
+        //         .sample_iter(distr)
+        //         .take(nr_samples * dim)
+        //         .collect(),
+        // )
+        // .unwrap(); // TODO deal with error
 
         self.transform_path(&sample_matrix)
     }
@@ -99,64 +117,24 @@ impl PathGenerator<Vec<Array1<f64>>> for MultivariateNormalDistribution {
     /// Optimized version of
     /// ''' rn_generator.sample_iter(self).take(nr_samples).collect()'''
     #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Vec<Array1<f64>> {
+    fn sample_path<SRng: SeedRng>(
+        &self,
+        rn_generator: &mut SRng,
+        nr_samples: usize,
+    ) -> Vec<Array1<f64>>
+    where
+        SRng: SeedRng,
+    {
         let dim = self.dim();
-        let distr = StandardNormal;
+        let standard_normals: Vec<f64> = StandardNormal.sample_path(rn_generator, nr_samples * dim);
 
         let mut path: Vec<Array1<f64>> = Vec::with_capacity(nr_samples);
-
-        let standard_normals: Vec<f64> = rn_generator
-            .sample_iter(distr)
-            .take(nr_samples * dim)
-            .collect();
-
         for (idx, _) in standard_normals.iter().enumerate().step_by(dim) {
             let slice = &standard_normals[idx..idx + dim];
             path.push(self.transform_sample(&arr1(slice)))
         }
 
         path
-    }
-}
-
-// TODO: try to optimize or delete
-pub struct SlicePath {
-    nr_samples: usize,
-    dim: usize,
-    samples: Vec<f64>,
-}
-
-impl std::iter::Iterator for SlicePath {
-    type Item = Array1<f64>; // would be better to not allocate here!
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut out = Vec::with_capacity(self.dim);
-        for _ in 0..self.dim {
-            if let Some(s) = self.samples.iter().next() {
-                out.push(*s);
-            } else {
-                return None;
-            }
-        }
-        Some(Array1::from(out))
-    }
-}
-
-impl PathGenerator<SlicePath> for MultivariateNormalDistribution {
-    #[inline]
-    fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> SlicePath {
-        let dim = self.dim();
-        let distr = StandardNormal;
-
-        let standard_normals: Vec<f64> = rn_generator
-            .sample_iter(distr)
-            .take(nr_samples * dim)
-            .collect();
-
-        SlicePath {
-            dim,
-            nr_samples,
-            samples: standard_normals,
-        }
     }
 }
 
