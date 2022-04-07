@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn european_call() {
-        let mc_option =
+        let mc_option: MonteCarloEuropeanOption<rand_hc::Hc128Rng> =
             MonteCarloEuropeanOption::new(300.0, 310.0, 1.0, 0.03, 0.25, 20_000, 1000, 1);
         let call_price = mc_option.call().unwrap();
         assert_eq!(call_price, 29.76722498945371);
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn european_put() {
-        let mc_option =
+        let mc_option: MonteCarloEuropeanOption<rand_hc::Hc128Rng> =
             MonteCarloEuropeanOption::new(300.0, 290.0, 1.0, 0.03, 0.12, 100_000, 100, 42);
         let put_price = mc_option.put().unwrap();
         assert_eq!(put_price, 6.4775539881225335);
@@ -129,7 +129,7 @@ mod tests {
     /// Reference: https://predictivehacks.com/pricing-of-european-options-with-monte-carlo/
     #[test]
     fn european_put_as_of_reference() {
-        let mc_option =
+        let mc_option: MonteCarloEuropeanOption<rand_hc::Hc128Rng> =
             MonteCarloEuropeanOption::new(102.0, 100.0, 0.5, 0.02, 0.2, 1_000_000, 100, 42);
         let put_price = mc_option.put().unwrap();
         assert_eq!(put_price, 4.2836072940653445); // black scholes ref: 4.293135
@@ -139,7 +139,7 @@ mod tests {
     /// Reference: https://predictivehacks.com/pricing-of-european-options-with-monte-carlo/
     #[test]
     fn european_call_as_of_reference() {
-        let mc_option =
+        let mc_option: MonteCarloEuropeanOption<rand_hc::Hc128Rng> =
             MonteCarloEuropeanOption::new(102.0, 100.0, 0.5, 0.02, 0.2, 1_000_000, 100, 111111);
         let call_price = mc_option.call().unwrap();
         assert_eq!(call_price, 7.297463800819357); // black scholes ref: 7.288151

@@ -154,17 +154,18 @@ mod tests {
         let cholesky_factor = arr2(&[[1.0, 0.05, 0.1], [0.0, 0.06, 0.17], [0.0, 0.0, 0.8]]);
         let weights = arr1(&[0.25, 0.25, 0.5]);
 
-        let mc_option = MonteCarloEuropeanBasketOption::new(
-            weights,
-            asset_prices,
-            rfrs,
-            cholesky_factor,
-            230.0,
-            2.0,
-            10_000,
-            300,
-            42,
-        );
+        let mc_option: MonteCarloEuropeanBasketOption<rand_hc::Hc128Rng> =
+            MonteCarloEuropeanBasketOption::new(
+                weights,
+                asset_prices,
+                rfrs,
+                cholesky_factor,
+                230.0,
+                2.0,
+                10_000,
+                300,
+                42,
+            );
         let call_price = mc_option.call().unwrap();
         dbg!(call_price);
         // TODO: fix unit test
@@ -181,17 +182,18 @@ mod tests {
         // no correlation between assets
         let cholesky_factor = arr2(&[[0.2, 0.0], [0.0, 0.2]]);
 
-        let mc_option = MonteCarloEuropeanBasketOption::new(
-            weights,
-            asset_prices,
-            rfrs,
-            cholesky_factor,
-            100.0,
-            0.5,
-            10_000,
-            100,
-            42,
-        );
+        let mc_option: MonteCarloEuropeanBasketOption<rand_hc::Hc128Rng> =
+            MonteCarloEuropeanBasketOption::new(
+                weights,
+                asset_prices,
+                rfrs,
+                cholesky_factor,
+                100.0,
+                0.5,
+                10_000,
+                100,
+                42,
+            );
         let call_price = mc_option.call().unwrap();
         dbg!(&call_price);
         // TODO: fix unit test
@@ -205,17 +207,18 @@ mod tests {
         let cholesky_factor = arr2(&[[1.0, 0.05, 0.1], [0.0, 0.06, 0.17], [0.0, 0.0, 0.8]]);
         let weights = arr1(&[0.25, 0.25, 0.5]);
 
-        let mc_option = MonteCarloEuropeanBasketOption::new(
-            weights,
-            asset_prices,
-            rfrs,
-            cholesky_factor,
-            180.0,
-            2.0,
-            10_000,
-            300,
-            42,
-        );
+        let mc_option: MonteCarloEuropeanBasketOption<rand_hc::Hc128Rng> =
+            MonteCarloEuropeanBasketOption::new(
+                weights,
+                asset_prices,
+                rfrs,
+                cholesky_factor,
+                180.0,
+                2.0,
+                10_000,
+                300,
+                42,
+            );
         let call_price = mc_option.put().unwrap();
         assert_eq!(call_price, 8.96589328828396);
         // assert_approx_eq!(call_price, 29.47, TOLERANCE);
@@ -234,17 +237,18 @@ mod tests {
         let rfrs = arr1(&[0.05, 0.05]);
         let weights = arr1(&[0.5, 0.5]);
 
-        let mc_option = MonteCarloEuropeanBasketOption::new(
-            weights,
-            asset_prices,
-            rfrs,
-            cholesky_factor,
-            80.0,
-            1.0,
-            10_000,
-            300,
-            42,
-        );
+        let mc_option: MonteCarloEuropeanBasketOption<rand_hc::Hc128Rng> =
+            MonteCarloEuropeanBasketOption::new(
+                weights,
+                asset_prices,
+                rfrs,
+                cholesky_factor,
+                80.0,
+                1.0,
+                10_000,
+                300,
+                42,
+            );
 
         // PriceSens = 0.9822
         // Delta = -0.0995

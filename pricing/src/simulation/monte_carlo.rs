@@ -9,6 +9,11 @@ pub trait PathGenerator<Path> {
         SRng: SeedRng;
 }
 
+// #[cfg(feature = "Hc128Rng")]
+// impl SeedRng for rand_hc::Hc128Rng {}
+// #[cfg(feature = "Isaac64Rng")]
+// impl SeedRng for rand_isaac::Isaac64Rng {}
+
 /// Implementations for seedable_rng are for instance:
 /// rand_hc::Hc128Rng
 /// rand_isaac::Isaac64Rng
@@ -141,14 +146,14 @@ mod tests {
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     const TOLERANCE: f64 = 1e-1;
 
+    impl SeedRng for rand_hc::Hc128Rng {}
+    impl SeedRng for rand_isaac::Isaac64Rng {}
+
     #[test]
     fn normal_path_simulation() {
         let sampler: Normal<f64> = Normal::new(0.5, 1.0).unwrap();
 
-        // <_, <rand_hc::Hc128Rng as SeedableRng>, _>
-        let rng = rand_hc::Hc128Rng::seed_from_u64(32);
-        let test = <rand_hc::Hc128Rng as SeedRng>;
-        let mc_simulator: MonteCarloPathSimulator<Normal<f64>, rand_hc::Hc128Rng, Vec<f64>> =
+        let mc_simulator: MonteCarloPathSimulator<_, rand_hc::Hc128Rng, Vec<f64>> =
             MonteCarloPathSimulator::new(sampler, Some(42));
 
         let paths_slice: Vec<Vec<f64>> = mc_simulator
@@ -177,9 +182,10 @@ mod tests {
         let dt = tte / nr_steps as f64;
 
         let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
-        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
+        let mc_simulator: MonteCarloPathSimulator<_, rand_hc::Hc128Rng, Vec<f64>> =
+            MonteCarloPathSimulator::new(StandardNormal, Some(42));
 
-        let paths = mc_simulator.simulate_paths_with(42, StandardNormal, |standard_normals| {
+        let paths = mc_simulator.simulate_paths_with(nr_paths, nr_steps, |standard_normals| {
             stock_gbm.generate_path(s0, standard_normals)
         });
         assert_eq!(paths.len(), nr_paths);
@@ -203,8 +209,9 @@ mod tests {
         let dt = tte / nr_steps as f64;
 
         let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
-        let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
-        let paths = mc_simulator.simulate_paths(42, stock_gbm);
+        let mc_simulator: MonteCarloPathSimulator<_, rand_hc::Hc128Rng, Vec<f64>> =
+            MonteCarloPathSimulator::new(stock_gbm, Some(42));
+        let paths = mc_simulator.simulate_paths(nr_paths, nr_steps);
 
         let path_eval = PathEvaluator::new(&paths);
 

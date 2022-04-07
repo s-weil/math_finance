@@ -237,9 +237,10 @@ mod tests {
         let mv_gbm =
             MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
 
-        let mc_simulator: MonteCarloPathSimulator<Array2<_>> =
-            MonteCarloPathSimulator::new(nr_paths, nr_steps);
-        let paths = mc_simulator.simulate_paths(42, mv_gbm);
+        let mc_simulator: MonteCarloPathSimulator<_, rand_hc::Hc128Rng, Array2<f64>> =
+            MonteCarloPathSimulator::new(mv_gbm, Some(42));
+
+        let paths = mc_simulator.simulate_paths(nr_paths, nr_steps);
         assert_eq!(paths.len(), nr_paths);
 
         let path_eval = PathEvaluator::new(&paths);

@@ -1,11 +1,10 @@
+use super::monte_carlo::SeedRng;
 use crate::simulation::monte_carlo::PathGenerator;
 
 use ndarray::{arr1, Array1, Array2};
 use ndarray_rand::RandomExt;
 use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
-
-use super::monte_carlo::SeedRng;
 
 fn sample_vec_path<R, D>(rn_generator: &mut R, distr: D, nr_samples: usize) -> Vec<f64>
 where
