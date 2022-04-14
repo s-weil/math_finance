@@ -18,8 +18,8 @@ use rand_distr::StandardNormal;
 // }
 criterion_group!(
     benches,
-    // criterion_stock_price_simulation,
-    // criterion_basket_stock_price_simulation,
+    criterion_stock_price_simulation,
+    criterion_basket_stock_price_simulation,
     criterion_multivariate_normal_distr
 );
 criterion_main!(benches);
