@@ -136,6 +136,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn european_basket_call() {
         let asset_prices = arr1(&[40.0, 60.0, 100.0]);
         let rfrs = arr1(&[0.01, 0.02, -0.01]);
@@ -162,6 +163,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn european_basket_call_iid() {
         let asset_prices = arr1(&[102.0, 102.0]);
         let rfrs = arr1(&[0.02, 0.02]);
@@ -189,6 +191,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn european_basket_put() {
         let asset_prices = arr1(&[50.0, 60.0, 100.0]);
         let rfrs = arr1(&[0.01, 0.02, -0.01]);
@@ -215,6 +218,7 @@ mod tests {
     /// https://predictivehacks.com/pricing-of-european-options-with-monte-carlo/
     /// Example from https://ch.mathworks.com/help/fininst/basketsensbyls.html
     #[test]
+    #[ignore]
     fn european_basket_put_reference() {
         let _corr = arr2(&[[1.0, 0.15], [0.15, 1.0]]);
 

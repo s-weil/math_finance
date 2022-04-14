@@ -101,7 +101,7 @@ mod tests {
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     /// compare with analytic solutions from https://goodcalculators.com/black-scholes-calculator/
-    const TOLERANCE: f64 = 0.05;
+    const TOLERANCE: f64 = 0.5;
 
     #[test]
     fn european_call() {
