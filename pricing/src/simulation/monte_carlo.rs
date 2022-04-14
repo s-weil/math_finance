@@ -1,55 +1,47 @@
 use rand::Rng;
 use std::marker::PhantomData;
 
-pub trait SeedRng: rand::SeedableRng + rand::RngCore {}
-
 pub trait PathGenerator<Path> {
-    fn sample_path<SRng>(&self, rn_generator: &mut SRng, nr_samples: usize) -> Path
+    fn sample_path<SeedRng>(&self, rn_generator: &mut SeedRng, nr_samples: usize) -> Path
     where
-        SRng: SeedRng;
+        SeedRng: rand::SeedableRng + rand::RngCore;
 }
-
-// #[cfg(feature = "Hc128Rng")]
-impl SeedRng for rand_hc::Hc128Rng {}
-// #[cfg(feature = "Isaac64Rng")]
-impl SeedRng for rand_isaac::Isaac64Rng {}
-
 /// Implementations for seedable_rng are for instance:
 /// rand_hc::Hc128Rng
 /// rand_isaac::Isaac64Rng
 #[derive(Debug)]
-pub struct MonteCarloPathSimulator<PathGen, SRng, Path>
+pub struct MonteCarloPathSimulator<PathGen, SeedRng, Path>
 where
     PathGen: PathGenerator<Path>,
-    SRng: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     path_generator: PathGen,
     seed_nr: Option<u64>,
     _phantom_path: PhantomData<Path>,
-    _phantom_rng: PhantomData<SRng>,
+    _phantom_rng: PhantomData<SeedRng>,
 }
 
-impl<PathGen, SRng, Path> MonteCarloPathSimulator<PathGen, SRng, Path>
+impl<PathGen, SeedRng, Path> MonteCarloPathSimulator<PathGen, SeedRng, Path>
 where
     PathGen: PathGenerator<Path>,
-    SRng: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     pub fn new(path_generator: PathGen, seed_nr: Option<u64>) -> Self {
         Self {
             path_generator,
             seed_nr,
             _phantom_path: PhantomData::<Path>,
-            _phantom_rng: PhantomData::<SRng>,
+            _phantom_rng: PhantomData::<SeedRng>,
         }
     }
 
-    fn rn_generator(&self) -> SRng {
+    fn rn_generator(&self) -> SeedRng {
         match self.seed_nr {
-            Some(seed_nr) => SRng::seed_from_u64(seed_nr),
+            Some(seed_nr) => SeedRng::seed_from_u64(seed_nr),
             None => {
                 let random_seed =
                     rand::thread_rng().sample(rand_distr::Uniform::new(0u64, 100_000));
-                SRng::seed_from_u64(random_seed)
+                SeedRng::seed_from_u64(random_seed)
             }
         }
     }
@@ -109,8 +101,7 @@ impl<'a, Path> PathEvaluator<'a, Path> {
         Self { paths }
     }
 
-    // TODO: rename apply
-    pub fn evaluate(&self, path_fn: impl Fn(&Path) -> Option<f64>) -> Vec<Option<f64>> {
+    pub fn apply(&self, path_fn: impl Fn(&Path) -> Option<f64>) -> Vec<Option<f64>> {
         self.paths.iter().map(path_fn).collect()
     }
 
@@ -136,7 +127,7 @@ mod tests {
     use std::vec;
 
     use super::*;
-    use crate::simulation::gbm::GeometricBrownianMotion;
+    use crate::simulation::sde::gbm::GeometricBrownianMotion;
     use rand_distr::{Normal, StandardNormal};
 
     use assert_approx_eq::assert_approx_eq;

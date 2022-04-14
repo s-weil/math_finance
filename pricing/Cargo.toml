@@ -14,14 +14,21 @@ rand_distr = "0.4.3"
 probability = "0.18.0"
 ndarray = "0.15.4"
 ndarray-rand = "0.14.0"
-rand_hc = "0.3.0"
-rand_isaac = "0.3.0"
+
+# rand_hc = { version = "0.3.0", optional = true }
+# rand_isaac = { version = "0.3.0", optional = true }
+
+# [features]
+# default = ["hc128rng", "isaac64rng"]
+# hc128rng = ["rand_hc"]
+# isaac64rng = ["rand_isaac"]
 
 [dev-dependencies]
 assert_approx_eq = "1.1.0"
 criterion = "0.3.5"
-# rand_hc = "0.3.0"
-# rand_isaac = "0.3.0"
+rand_hc = "0.3.1"
+rand_isaac = "0.3.0"
+rand_chacha = "0.3.1"
 
 [[bench]]
 name = "mc_benchmark"

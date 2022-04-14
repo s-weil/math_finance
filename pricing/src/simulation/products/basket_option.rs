@@ -4,19 +4,16 @@ use ndarray::prelude::*;
 use ndarray::Array2;
 
 use crate::simulation::monte_carlo::MonteCarloPathSimulator;
-use crate::simulation::monte_carlo::SeedRng;
-use crate::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
+use crate::simulation::sde::multivariate_gbm::MultivariateGeometricBrownianMotion;
 use crate::simulation::PathEvaluator;
 
 // https://backtick.se/blog/options-mc-2/
 // https://jbhender.github.io/Stats506/F18/GP/Group21.html
 /// Indices of cholesky matrix must be aligned with the indices in weights, asset_proces, rf_rates
-pub struct MonteCarloEuropeanBasketOption<SRng>
+pub struct MonteCarloEuropeanBasketOption<SeedRng>
 where
-    SRng: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
-    /// Required for Greeks
-    // underlying_map: HashMap<Underlying, usize>,
     weights: Array1<f64>,
     asset_prices: Array1<f64>,
     rf_rates: Array1<f64>,
@@ -27,16 +24,15 @@ where
     /// (T - t) in years, where T is the time of the option's expiration and t is the current time
     time_to_expiration: f64,
 
-    // mc_simulator: MonteCarloPathSimulator<PathGen, Rng, Array2<f64>>,
     seed_nr: u64,
     nr_paths: usize,
     nr_steps: usize,
-    _phantom_rng: PhantomData<SRng>,
+    _phantom_rng: PhantomData<SeedRng>,
 }
 
-impl<SRng> MonteCarloEuropeanBasketOption<SRng>
+impl<SeedRng> MonteCarloEuropeanBasketOption<SeedRng>
 where
-    SRng: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     pub fn new(
         // underlying_map: HashMap<Underlying, usize>,
@@ -53,10 +49,7 @@ where
     ) -> Self {
         let weight_sum = weights.iter().fold(0.0, |acc, c| acc + c);
         assert_eq!(weight_sum, 1.0);
-        // let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
         Self {
-            // underlying_map,
-            // mc_simulator,
             time_to_expiration,
             strike,
             cholesky_factor,
@@ -66,7 +59,7 @@ where
             nr_paths,
             nr_steps,
             seed_nr,
-            _phantom_rng: PhantomData::<SRng>,
+            _phantom_rng: PhantomData::<SeedRng>,
         }
     }
 
@@ -76,7 +69,7 @@ where
 
     fn sample_payoffs(&self, pay_off: impl Fn(&Array2<f64>) -> Option<f64>) -> Option<f64> {
         let gbm: MultivariateGeometricBrownianMotion = self.into();
-        let mc_simulator: MonteCarloPathSimulator<_, SRng, _> =
+        let mc_simulator: MonteCarloPathSimulator<_, SeedRng, _> =
             MonteCarloPathSimulator::new(gbm, Some(self.seed_nr));
         let paths = mc_simulator.simulate_paths(self.nr_paths, self.nr_steps);
         let path_evaluator = PathEvaluator::new(&paths);
@@ -126,7 +119,7 @@ where
 
 impl<R> From<&MonteCarloEuropeanBasketOption<R>> for MultivariateGeometricBrownianMotion
 where
-    R: SeedRng,
+    R: rand::SeedableRng + rand::RngCore,
 {
     fn from(mceo: &MonteCarloEuropeanBasketOption<R>) -> Self {
         MultivariateGeometricBrownianMotion::new(
@@ -141,7 +134,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
     /// compare with analytic solutions from https://goodcalculators.com/black-scholes-calculator/

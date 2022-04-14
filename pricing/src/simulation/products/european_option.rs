@@ -1,26 +1,23 @@
 use std::marker::PhantomData;
 
 use crate::common::models::DerivativeParameter;
-use crate::simulation::gbm::GeometricBrownianMotion;
 use crate::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
+use crate::simulation::sde::gbm::GeometricBrownianMotion;
 
-use super::monte_carlo::SeedRng;
-
-pub struct MonteCarloEuropeanOption<SRng>
+pub struct MonteCarloEuropeanOption<SeedRng>
 where
-    SRng: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     pub option_params: DerivativeParameter,
-    // pub mc_simulator: MonteCarloPathSimulator<rand_distr::StandardNormal, SeedRng, Vec<f64>>,
     pub seed_nr: u64,
     pub nr_paths: usize,
     pub nr_steps: usize,
-    _phantom_rng: PhantomData<SRng>,
+    _phantom_rng: PhantomData<SeedRng>,
 }
 
-impl<SRng> MonteCarloEuropeanOption<SRng>
+impl<SeedRng> MonteCarloEuropeanOption<SeedRng>
 where
-    SRng: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     pub fn new(
         asset_price: f64,
@@ -34,14 +31,12 @@ where
     ) -> Self {
         let option_params =
             DerivativeParameter::new(asset_price, strike, time_to_expiration, rfr, vola);
-        // let mc_simulator = MonteCarloPathSimulator::new(nr_paths, nr_steps);
         Self {
             option_params,
-            // mc_simulator,
             nr_paths,
             nr_steps,
             seed_nr,
-            _phantom_rng: PhantomData::<SRng>,
+            _phantom_rng: PhantomData::<SeedRng>,
         }
     }
 
@@ -59,7 +54,7 @@ where
 
     pub fn sample_payoffs(&self, pay_off: impl Fn(&Vec<f64>) -> Option<f64>) -> Option<f64> {
         let stock_gbm: GeometricBrownianMotion = self.into();
-        let mc_simulator: MonteCarloPathSimulator<_, SRng, _> =
+        let mc_simulator: MonteCarloPathSimulator<_, SeedRng, _> =
             MonteCarloPathSimulator::new(stock_gbm, Some(self.seed_nr));
         let paths = mc_simulator.simulate_paths(self.nr_paths, self.nr_steps);
         let path_evaluator = PathEvaluator::new(&paths);
@@ -85,7 +80,7 @@ where
 
 impl<R> From<&MonteCarloEuropeanOption<R>> for GeometricBrownianMotion
 where
-    R: SeedRng,
+    R: rand::SeedableRng + rand::RngCore,
 {
     fn from(mceo: &MonteCarloEuropeanOption<R>) -> Self {
         // under the risk neutral measure we have mu = r

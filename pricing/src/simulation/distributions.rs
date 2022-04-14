@@ -1,4 +1,3 @@
-use super::monte_carlo::SeedRng;
 use crate::simulation::monte_carlo::PathGenerator;
 
 use ndarray::{arr1, Array1, Array2};
@@ -8,7 +7,7 @@ use rand_distr::{Distribution, StandardNormal};
 
 fn sample_vec_path<R, D>(rn_generator: &mut R, distr: D, nr_samples: usize) -> Vec<f64>
 where
-    R: SeedRng,
+    R: rand::SeedableRng + rand::RngCore,
     D: Distribution<f64>,
 {
     rn_generator.sample_iter(distr).take(nr_samples).collect()
@@ -17,14 +16,18 @@ where
 impl PathGenerator<Vec<f64>> for rand_distr::StandardNormal {
     fn sample_path<R>(&self, rn_generator: &mut R, nr_samples: usize) -> Vec<f64>
     where
-        R: SeedRng,
+        R: rand::SeedableRng + rand::RngCore,
     {
         sample_vec_path(rn_generator, self, nr_samples)
     }
 }
 
 impl PathGenerator<Vec<f64>> for rand_distr::Normal<f64> {
-    fn sample_path<SRng: SeedRng>(&self, rn_generator: &mut SRng, nr_samples: usize) -> Vec<f64> {
+    fn sample_path<SeedRng: rand::SeedableRng + rand::RngCore>(
+        &self,
+        rn_generator: &mut SeedRng,
+        nr_samples: usize,
+    ) -> Vec<f64> {
         sample_vec_path(rn_generator, self, nr_samples)
     }
 }
@@ -90,9 +93,9 @@ impl Distribution<Array1<f64>> for MultivariateNormalDistribution {
 // #[cfg(feature = "rand_isaac")]
 impl PathGenerator<Array2<f64>> for MultivariateNormalDistribution {
     #[inline]
-    fn sample_path<SRng: SeedRng>(
+    fn sample_path<SeedRng: rand::SeedableRng + rand::RngCore>(
         &self,
-        rn_generator: &mut SRng,
+        rn_generator: &mut SeedRng,
         nr_samples: usize,
     ) -> Array2<f64> {
         let dim = self.dim();
@@ -116,13 +119,13 @@ impl PathGenerator<Vec<Array1<f64>>> for MultivariateNormalDistribution {
     /// Optimized version of
     /// ''' rn_generator.sample_iter(self).take(nr_samples).collect()'''
     #[inline]
-    fn sample_path<SRng: SeedRng>(
+    fn sample_path<SeedRng: rand::SeedableRng + rand::RngCore>(
         &self,
-        rn_generator: &mut SRng,
+        rn_generator: &mut SeedRng,
         nr_samples: usize,
     ) -> Vec<Array1<f64>>
     where
-        SRng: SeedRng,
+        SeedRng: rand::SeedableRng + rand::RngCore,
     {
         let dim = self.dim();
         let standard_normals: Vec<f64> = StandardNormal.sample_path(rn_generator, nr_samples * dim);

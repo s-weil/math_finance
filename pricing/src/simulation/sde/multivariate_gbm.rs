@@ -54,11 +54,6 @@ impl MultivariateGeometricBrownianMotion {
         st + st * &d_st_s0
     }
 
-    fn step2(&self, st: &Array1<f64>, std_normal_vec: &Array1<f64>) -> Array1<f64> {
-        let d_st_s0: Array1<f64> = self.dt * &self.drifts + std_normal_vec;
-        st + st * &d_st_s0
-    }
-
     pub fn generate_path(&self, standard_normals: &[&[f64]]) -> Vec<Array1<f64>> {
         let mut path = Vec::with_capacity(standard_normals.len() + 1);
 
@@ -93,7 +88,7 @@ impl MultivariateGeometricBrownianMotion {
             //     }
             let st = multivariate_normals.slice(s![.., idx - 1]);
             let curr_slice = multivariate_normals.slice(s![.., idx]);
-            let d_st_s0: Array1<f64> = self.dt * &self.drifts + &curr_slice;
+            let d_st_s0: Array1<f64> = self.dt * &self.drifts + curr_slice;
             let stn = &st + &st * &d_st_s0;
 
             for i in 0..dim {

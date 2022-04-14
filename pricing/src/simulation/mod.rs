@@ -1,10 +1,7 @@
-pub mod basket_option;
 pub mod distributions;
-pub mod european_option;
-pub mod gbm;
 pub mod greek_engine;
 pub mod monte_carlo;
-pub mod multivariate_gbm;
+pub mod products;
+pub mod sde;
 
-pub use gbm::GeometricBrownianMotion;
 pub use monte_carlo::{PathEvaluator, PathGenerator};

@@ -3,9 +3,9 @@
 
 extern crate pricing;
 use pricing::simulation::distributions::MultivariateNormalDistribution;
-use pricing::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator, SeedRng};
-use pricing::simulation::multivariate_gbm::MultivariateGeometricBrownianMotion;
-use pricing::simulation::GeometricBrownianMotion;
+use pricing::simulation::monte_carlo::{MonteCarloPathSimulator, PathEvaluator};
+use pricing::simulation::sde::gbm::GeometricBrownianMotion;
+use pricing::simulation::sde::multivariate_gbm::MultivariateGeometricBrownianMotion;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ndarray::{arr1, arr2, Array2};
@@ -18,9 +18,9 @@ use rand_distr::StandardNormal;
 // }
 criterion_group!(
     benches,
-    criterion_stock_price_simulation,
+    // criterion_stock_price_simulation,
     // criterion_basket_stock_price_simulation,
-    // criterion_multivariate_normal_distr
+    criterion_multivariate_normal_distr
 );
 criterion_main!(benches);
 
@@ -48,6 +48,17 @@ pub fn criterion_stock_price_simulation(c: &mut Criterion) {
     );
 
     group.bench_function(
+        "apply a path function on the stored paths with ChaCha RNG",
+        |b| {
+            b.iter(|| {
+                simulate_paths_with_path_generator::<rand_chacha::ChaCha12Rng>(black_box((
+                    30_000, 200,
+                )))
+            })
+        },
+    );
+
+    group.bench_function(
         "apply a path function (in place) on the stored paths",
         |b| b.iter(|| simulate_paths_with_path_generator_in_place(black_box((30_000, 200)))),
     );
@@ -59,9 +70,9 @@ pub fn criterion_stock_price_simulation(c: &mut Criterion) {
     group.finish()
 }
 
-fn simulate_paths_with_path_generator<SR>((nr_paths, nr_steps): (usize, usize))
+fn simulate_paths_with_path_generator<SeedRng>((nr_paths, nr_steps): (usize, usize))
 where
-    SR: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     let vola = 50.0 / 365.0;
     let drift = 0.01;
@@ -69,7 +80,7 @@ where
     let s0 = 300.0;
 
     let stock_gbm = GeometricBrownianMotion::new(s0, drift, vola, dt);
-    let mc_simulator: MonteCarloPathSimulator<_, SR, Vec<f64>> =
+    let mc_simulator: MonteCarloPathSimulator<_, SeedRng, Vec<f64>> =
         MonteCarloPathSimulator::new(StandardNormal, Some(42));
 
     let paths = mc_simulator.simulate_paths_with(nr_paths, nr_steps, |random_normals| {
@@ -177,6 +188,14 @@ pub fn criterion_multivariate_normal_distr(c: &mut Criterion) {
         })
     });
 
+    group.bench_function("modelled with array2 and ChaCha RNG", |b| {
+        b.iter(|| {
+            multivariate_normal_distr_array2::<rand_chacha::ChaCha12Rng>(black_box((
+                5_000, 300, 42,
+            )))
+        })
+    });
+
     group.bench_function("modelled with vec<array1> and Isaac64 RNG", |b| {
         b.iter(|| {
             multivariate_normal_distr_vec_of_array1::<rand_isaac::Isaac64Rng>(black_box((
@@ -188,29 +207,29 @@ pub fn criterion_multivariate_normal_distr(c: &mut Criterion) {
     group.finish()
 }
 
-fn multivariate_normal_distr_array2<SR>((nr_paths, nr_steps, seed): (usize, usize, u64))
+fn multivariate_normal_distr_array2<SeedRng>((nr_paths, nr_steps, seed): (usize, usize, u64))
 where
-    SR: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     let mu = arr1(&[0.1, 0.2, 0.3]);
     let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
     let mv_normal = MultivariateNormalDistribution::new(mu, cholesky_factor);
 
-    let mc_simulator: MonteCarloPathSimulator<_, SR, Array2<f64>> =
+    let mc_simulator: MonteCarloPathSimulator<_, SeedRng, Array2<f64>> =
         MonteCarloPathSimulator::new(mv_normal, Some(seed));
     let paths = mc_simulator.simulate_paths(nr_paths, nr_steps);
     assert_eq!(paths.len(), nr_paths);
 }
 
-fn multivariate_normal_distr_vec_of_array1<SR>((nr_paths, nr_steps, seed): (usize, usize, u64))
+fn multivariate_normal_distr_vec_of_array1<SeedRng>((nr_paths, nr_steps, seed): (usize, usize, u64))
 where
-    SR: SeedRng,
+    SeedRng: rand::SeedableRng + rand::RngCore,
 {
     let mu = arr1(&[0.1, 0.2, 0.3]);
     let cholesky_factor = arr2(&[[1.0, 0.5, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
     let mv_normal = MultivariateNormalDistribution::new(mu, cholesky_factor);
 
-    let mc_simulator: MonteCarloPathSimulator<_, SR, Vec<_>> =
+    let mc_simulator: MonteCarloPathSimulator<_, SeedRng, Vec<_>> =
         MonteCarloPathSimulator::new(mv_normal, Some(seed));
     let paths = mc_simulator.simulate_paths(nr_paths, nr_steps);
     assert_eq!(paths.len(), nr_paths);
