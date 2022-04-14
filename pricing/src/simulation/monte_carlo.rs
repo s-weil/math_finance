@@ -1,6 +1,14 @@
 use rand::Rng;
 use std::marker::PhantomData;
 
+// TODO: not yet used / required for later
+/// Models the dynamics of the asset(s) price.
+/// RandomPath represents the underlying random distribution,
+/// which is transformed to the price path.
+pub trait Dynamics<Input, RandomPath, Path> {
+    fn transform(&self, input: Input, rnd_path: RandomPath) -> Path;
+}
+
 pub trait PathGenerator<Path> {
     fn sample_path<SeedRng>(&self, rn_generator: &mut SeedRng, nr_samples: usize) -> Path
     where

@@ -135,10 +135,6 @@ where
 mod tests {
     use super::*;
 
-    /// NOTE: the tolerance will depend on the number of samples paths and other params like steps and the volatility
-    /// compare with analytic solutions from https://goodcalculators.com/black-scholes-calculator/
-    const TOLERANCE: f64 = 1e-1;
-
     #[test]
     fn european_basket_call() {
         let asset_prices = arr1(&[40.0, 60.0, 100.0]);

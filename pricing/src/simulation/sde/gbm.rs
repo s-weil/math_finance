@@ -1,8 +1,7 @@
 use rand::Rng;
 use rand_distr::{Distribution, StandardNormal};
 
-use crate::simulation::greek_engine::Dynamics;
-use crate::simulation::monte_carlo::PathGenerator;
+use crate::simulation::monte_carlo::{Dynamics, PathGenerator};
 
 /// Model params for the SDE
 /// '''math
