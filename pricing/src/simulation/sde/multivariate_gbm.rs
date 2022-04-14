@@ -54,48 +54,26 @@ impl MultivariateGeometricBrownianMotion {
         st + st * &d_st_s0
     }
 
-    pub fn generate_path(&self, standard_normals: &[&[f64]]) -> Vec<Array1<f64>> {
-        let mut path = Vec::with_capacity(standard_normals.len() + 1);
-
-        path.push(self.initial_values.clone());
-
-        for std_normal_vec in standard_normals {
-            let curr_p = path.last().unwrap();
-            let sample = self.step(curr_p, &arr1(std_normal_vec));
-            path.push(sample);
-        }
-
-        path
-    }
-
-    pub fn generate_path_linalg(
-        &self,
-        sample_matrix: &Array2<f64>,
-        nr_samples: usize,
-    ) -> Array2<f64> {
+    pub fn transform_path(&self, sample_matrix: &Array2<f64>, nr_samples: usize) -> Array2<f64> {
         let mut multivariate_normals = self.dt.sqrt() * self.cholesky_factor.dot(sample_matrix);
+        let dim = self.dim();
 
         //TODO: possible to use multivariate_normals.axis_windows(Axis(0), 2)?
 
-        let dim = self.dim();
-        for idx in 1..nr_samples {
-            // TODO: integrate initial values
-            // let st =
-            //     if idx == 0 {
-            //         self.initial_values.axis_iter(axis)
-            //     } else {
-            //         multivariate_normals.slice(s![.., idx - 1])
-            //     }
-            let st = multivariate_normals.slice(s![.., idx - 1]);
-            let curr_slice = multivariate_normals.slice(s![.., idx]);
-            let d_st_s0: Array1<f64> = self.dt * &self.drifts + curr_slice;
-            let stn = &st + &st * &d_st_s0;
+        // overwrite the first column by initial prices
+        for idx in 0..dim {
+            multivariate_normals[[idx, 0]] = self.initial_values[idx];
+        }
 
+        for idx in 1..nr_samples {
+            let st = multivariate_normals.column(idx - 1);
+            let rnd = multivariate_normals.column(idx);
+            let d_st_s0: Array1<f64> = self.dt * &self.drifts + rnd;
+            let stn = &st + &st * &d_st_s0;
             for i in 0..dim {
                 multivariate_normals[[i, idx]] = stn[i];
             }
         }
-
         multivariate_normals
     }
 }
@@ -110,36 +88,6 @@ impl Distribution<Array1<f64>> for MultivariateGeometricBrownianMotion {
     }
 }
 
-// impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
-//     #[inline]
-//     fn sample_path(&self, rn_generator: &mut Hc128Rng, nr_samples: usize) -> Array2<f64> {
-//         let dim = self.dim();
-//         let distr = StandardNormal;
-
-//         let mut sample_matrix = Array2::from_shape_vec(
-//             (nr_samples, dim),
-//             rn_generator
-//                 .sample_iter(distr)
-//                 .take(nr_samples * dim)
-//                 .collect(),
-//         )
-//         .unwrap(); // TODO deal with error
-
-//         for idx in 1..nr_samples {
-//             let prev_slice = sample_matrix.slice(s![idx - 1, ..]);
-//             let curr_slice = sample_matrix.slice(s![idx, ..]);
-//             let transformed = self.step(&prev_slice.to_owned(), &curr_slice.to_owned());
-//             // sample_matrix.slice_mut(s![idx, ..]).assign(&transformed);
-//             // curr_slice(&transformed);
-//             for i in 0..dim {
-//                 sample_matrix[[idx, i]] = transformed[i];
-//             }
-//         }
-
-//         sample_matrix
-//     }
-// }
-
 impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
     #[inline]
     fn sample_path<R>(&self, rn_generator: &mut R, nr_samples: usize) -> Array2<f64>
@@ -148,9 +96,11 @@ impl PathGenerator<Array2<f64>> for MultivariateGeometricBrownianMotion {
     {
         let dim = self.dim();
         let distr = ndarray_rand::rand_distr::StandardNormal;
-        let sample_matrix = ndarray::Array::random_using((dim, nr_samples), distr, rn_generator);
+        // create one extra dummy column
+        let sample_matrix =
+            ndarray::Array::random_using((dim, 1 + nr_samples), distr, rn_generator);
 
-        self.generate_path_linalg(&sample_matrix, nr_samples)
+        self.transform_path(&sample_matrix, 1 + nr_samples)
     }
 }
 
@@ -213,8 +163,8 @@ mod tests {
 
         let initial_values = arr1(&[110.0, 120.0, 130.0]);
         let drifts = arr1(&[0.01, 0.02, 0.03]);
-        let cholesky_factor = arr2(&[[1.0, 0.05, 0.1], [0.0, 0.6, 0.7], [0.0, 0.0, 0.8]]);
-        let dt = 1.0;
+        let cholesky_factor = arr2(&[[1.0, 0.05, 0.1], [0.0, 0.6, 0.07], [0.0, 0.0, 1.0]]);
+        let dt = 1.0 / 100.0;
 
         let mv_gbm =
             MultivariateGeometricBrownianMotion::new(initial_values, drifts, cholesky_factor, dt);
@@ -224,12 +174,16 @@ mod tests {
 
         let paths = mc_simulator.simulate_paths(nr_paths, nr_steps);
         assert_eq!(paths.len(), nr_paths);
-        assert_eq!(&paths[0].shape(), &[3, nr_steps]);
+        assert_eq!(&paths[0].shape(), &[3, nr_steps + 1]);
+
+        dbg!(&paths[0]);
+        dbg!(&paths[0].column(0));
+        dbg!(&paths[0].column(nr_steps));
 
         let path_eval = PathEvaluator::new(&paths);
         let avg_price = path_eval
-            .evaluate_average(|path| path.axis_iter(Axis(0)).last().map(|p| p.sum() / 3.0));
-        // assert!(avg_price.unwrap() > 0.0);
-        dbg!(avg_price.unwrap() / nr_paths as f64);
+            .evaluate_average(|path| path.axis_iter(Axis(1)).last().map(|p| p.sum() / 3.0));
+        assert!(avg_price.unwrap() > 0.0);
+        dbg!(avg_price.unwrap());
     }
 }

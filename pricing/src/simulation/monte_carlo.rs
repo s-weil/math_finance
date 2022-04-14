@@ -9,6 +9,7 @@ pub trait PathGenerator<Path> {
 /// Implementations for seedable_rng are for instance:
 /// rand_hc::Hc128Rng
 /// rand_isaac::Isaac64Rng
+/// rand_chacha
 #[derive(Debug)]
 pub struct MonteCarloPathSimulator<PathGen, SeedRng, Path>
 where

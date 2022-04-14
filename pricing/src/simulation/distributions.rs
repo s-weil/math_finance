@@ -101,15 +101,6 @@ impl PathGenerator<Array2<f64>> for MultivariateNormalDistribution {
         let dim = self.dim();
         let distr = ndarray_rand::rand_distr::StandardNormal;
         let sample_matrix = ndarray::Array::random_using((dim, nr_samples), distr, rn_generator);
-        // let sample_matrix = Array2::from_shape_vec(
-        //     (dim, nr_samples),
-        //     rn_generator
-        //         .sample_iter(distr)
-        //         .take(nr_samples * dim)
-        //         .collect(),
-        // )
-        // .unwrap(); // TODO deal with error
-
         self.transform_path(&sample_matrix)
     }
 }
