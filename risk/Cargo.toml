@@ -10,3 +10,8 @@ description = "Risk figures"
 
 [dependencies]
 thiserror = "1.0.30"
+bigdecimal = { version = "0.3.0", optional = true }
+
+[features]
+big-decimal = [ "dep:bigdecimal" ]
+
