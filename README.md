@@ -14,7 +14,7 @@ Mathematical finance in Rust
 
 ### Risk and Portfolio theory
 
-    - risk figur
+    - risk figures
     [*] Markovitz portofolio optimization
     [*] Black Litterman
     [*] Deep Hedging
@@ -33,7 +33,7 @@ Any contribution and help is highly welcome! Work needs to be done in general an
 - documentation, references, example implementations
   (and many more areas)
 
-## flamegraph and
+## flamegraph and benchmarking
 
 Run flamegraph for detecting hot paths.
 Running unit tests via this [workaround](https://github.com/flamegraph-rs/flamegraph/issues/139)
@@ -46,3 +46,8 @@ flamegraph target/release/deps/pricing-8329770a5e5551d4 -- test-name(e.g. no_dri
 ```
 
 Find the flamegraph.svg and 'perf.data' at the project's root / flamegraph folder.
+
+For benchmarking with criterion, run 
+```
+cargo bench
+```
