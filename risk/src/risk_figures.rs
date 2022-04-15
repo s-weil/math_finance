@@ -1,6 +1,9 @@
 use crate::error::RiskError;
 use std::ops::{Add, Div, Mul, Sub};
 
+#[cfg(feature = "big-decimal")]
+use crate::bigdecimal::Zero;
+
 /// Mimic the key features of a field.
 pub trait PseudoField:
     Sized + Add<Output = Self> + Div<Output = Self> + Mul<Output = Self> + Sub<Output = Self>
@@ -24,7 +27,16 @@ macro_rules! impl_numeric {
 
 impl_numeric! { f32 }
 impl_numeric! { f64 }
-// TODO: add bigint dependency and implementation with feature flag
+
+#[cfg(feature = "big-decimal")]
+impl PseudoField for bigdecimal::BigDecimal {
+    fn is_divisible(&self, tolerance: Option<Self>) -> bool {
+        match tolerance {
+            Some(tol) => self.abs() >= tol,
+            None => self.abs() != bigdecimal::BigDecimal::zero(),
+        }
+    }
+}
 
 pub(crate) fn asset_bmk_ratio<Numeric>(
     asset_return: Numeric,
@@ -78,6 +90,9 @@ where
 mod tests {
     use super::*;
 
+    #[cfg(feature = "big-decimal")]
+    use bigdecimal::*;
+
     #[test]
     fn asset_bmk_ratio_f32() {
         assert_eq!(
@@ -106,5 +121,36 @@ mod tests {
 
         assert!(asset_bmk_ratio(0.2_f64, 0.1_f64, 0.01_f64, Some(0.05)).is_err());
         assert!(asset_bmk_ratio(0.2_f64, 0.1_f64, 0.01_f64, Some(0.01)).is_ok());
+    }
+
+    #[cfg(feature = "big-decimal")]
+    #[test]
+    fn asset_bmk_ratio_bigdecimal() {
+        assert_eq!(
+            asset_bmk_ratio(
+                BigDecimal::from_f64(0.2).unwrap(),
+                BigDecimal::from_f64(0.1).unwrap(),
+                BigDecimal::from_f64(1.0).unwrap(),
+                None
+            )
+            .unwrap(),
+            BigDecimal::from_f64(0.1_f64).unwrap()
+        );
+
+        assert!(asset_bmk_ratio(
+            BigDecimal::from_f64(0.2).unwrap(),
+            BigDecimal::from_f64(0.1).unwrap(),
+            BigDecimal::from_f64(0.01).unwrap(),
+            Some(BigDecimal::from_f64(0.05).unwrap())
+        )
+        .is_err());
+
+        assert!(asset_bmk_ratio(
+            BigDecimal::from_f64(0.2).unwrap(),
+            BigDecimal::from_f64(0.1).unwrap(),
+            BigDecimal::from_f64(0.01).unwrap(),
+            Some(BigDecimal::from_f64(0.01).unwrap())
+        )
+        .is_ok());
     }
 }
